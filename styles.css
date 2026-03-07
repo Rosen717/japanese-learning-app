@@ -161,6 +161,27 @@ h2 {
   padding: 0.34rem 0.74rem;
 }
 
+#enter-dict-btn,
+#enter-dict-btn-main {
+  border: 0;
+  color: #fff;
+  background: linear-gradient(
+    120deg,
+    #ff5ea8 0%,
+    #ff9f45 24%,
+    #ffe15a 42%,
+    #5fdfb1 62%,
+    #54b9ff 80%,
+    #9e7dff 100%
+  );
+  box-shadow: 0 10px 22px rgba(116, 98, 194, 0.26);
+}
+
+#enter-dict-btn:hover,
+#enter-dict-btn-main:hover {
+  filter: saturate(1.08) brightness(1.03);
+}
+
 .primary-btn {
   border: 0;
   background: linear-gradient(135deg, var(--brand), var(--brand2));
