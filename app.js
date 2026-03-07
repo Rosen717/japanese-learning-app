@@ -35,6 +35,7 @@ let sfxContext = null;
 let dictionaryEntries = [...VOCAB];
 let dictionaryLoaded = false;
 let dictionaryLoading = false;
+let wordIndex = buildWordIndex(dictionaryEntries);
 
 init();
 
@@ -216,7 +217,7 @@ function renderTab(tab) {
 }
 
 function renderLearn() {
-  const word = getWordById(state.activeWordId) || VOCAB[0];
+  const word = getWordById(state.activeWordId) || getStudyPool()[0];
   if (!word) {
     contentArea.innerHTML = '<p class="empty">词库为空。</p>';
     return;
@@ -633,15 +634,61 @@ async function ensureDictionaryData() {
       return;
     }
     dictionaryEntries = mergeVocab(VOCAB, imported);
+    wordIndex = buildWordIndex(dictionaryEntries);
+    syncStateWithPool();
+    persist();
   } catch {
     // Keep fallback base vocab on any error.
   } finally {
     dictionaryLoaded = true;
     dictionaryLoading = false;
-    if (state.activeTab === 'dictionary') {
-      renderDictionary();
-      refreshStats();
+    renderTab(state.activeTab);
+  }
+}
+
+function buildWordIndex(list) {
+  const index = new Map();
+  for (const word of list) {
+    if (!word || typeof word !== 'object') {
+      continue;
     }
+    if (!word.id) {
+      continue;
+    }
+    index.set(word.id, word);
+  }
+  return index;
+}
+
+function getStudyPool() {
+  return dictionaryEntries.length > 0 ? dictionaryEntries : VOCAB;
+}
+
+function createBlankCard(id) {
+  return {
+    id,
+    box: 0,
+    dueAt: 0,
+    totalSeen: 0,
+    totalCorrect: 0,
+    lastStudiedAt: null
+  };
+}
+
+function syncStateWithPool() {
+  const pool = getStudyPool();
+  const validIds = new Set(pool.map((word) => word.id));
+  const cardMap = new Map(state.cards.map((card) => [card.id, card]));
+  state.cards = pool.map((word) => cardMap.get(word.id) || createBlankCard(word.id));
+  if (!validIds.has(state.activeWordId)) {
+    state.activeWordId = pool[0]?.id || null;
+  }
+  state.wrongQueue = state.wrongQueue.filter((id) => validIds.has(id));
+  if (!validIds.has(state.quiz.currentWordId)) {
+    state.quiz.currentWordId = null;
+    state.quiz.lastChoice = null;
+    state.quiz.isAnswered = false;
+    state.quiz.choices = [];
   }
 }
 
@@ -761,12 +808,13 @@ function applyReview(wordId, isCorrect) {
 }
 
 function setNextQuizQuestion() {
+  const pool = getStudyPool();
   const wrongId = shiftNextWrongWord();
   let target = null;
   if (state.quizWrongOnly) {
     target = getWordById(wrongId);
   } else {
-    const fallback = shuffle([...VOCAB])[0] || VOCAB[0];
+    const fallback = pool[Math.floor(Math.random() * pool.length)] || pool[0];
     target = getWordById(wrongId) || fallback;
   }
   if (!target) {
@@ -781,11 +829,13 @@ function setNextQuizQuestion() {
   state.quiz.isAnswered = false;
 
   const choices = new Set([target.zh]);
-  for (const word of shuffle([...VOCAB])) {
-    if (choices.size >= 4) {
-      break;
+  let guard = 0;
+  while (choices.size < 4 && guard < 1500) {
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    if (pick?.zh) {
+      choices.add(pick.zh);
     }
-    choices.add(word.zh);
+    guard += 1;
   }
 
   state.quiz.choices = shuffle([...choices]);
@@ -818,7 +868,7 @@ function calcAccuracy() {
 
 function getDueWords() {
   const now = Date.now();
-  const dueIds = state.cards.filter((card) => card.dueAt <= now).map((card) => card.id);
+  const dueIds = state.cards.filter((card) => card.totalSeen > 0 && card.dueAt <= now).map((card) => card.id);
   return dueIds.map(getWordById).filter(Boolean);
 }
 
@@ -831,15 +881,16 @@ function getCard(wordId) {
 }
 
 function getWordById(id) {
-  return VOCAB.find((word) => word.id === id);
+  return wordIndex.get(id) || null;
 }
 
 function nextWordId(currentId) {
-  const currentIndex = VOCAB.findIndex((word) => word.id === currentId);
+  const pool = getStudyPool();
+  const currentIndex = pool.findIndex((word) => word.id === currentId);
   if (currentIndex < 0) {
-    return VOCAB[0].id;
+    return pool[0]?.id || null;
   }
-  return VOCAB[(currentIndex + 1) % VOCAB.length].id;
+  return pool[(currentIndex + 1) % pool.length].id;
 }
 
 function calcStreak() {

@@ -163,23 +163,22 @@ h2 {
 
 #enter-dict-btn,
 #enter-dict-btn-main {
-  border: 0;
+  border: 1px solid rgba(140, 200, 255, 0.55);
   color: #fff;
   background: linear-gradient(
-    120deg,
-    #ff5ea8 0%,
-    #ff9f45 24%,
-    #ffe15a 42%,
-    #5fdfb1 62%,
-    #54b9ff 80%,
-    #9e7dff 100%
+    135deg,
+    rgba(86, 168, 255, 0.82) 0%,
+    rgba(116, 208, 255, 0.55) 52%,
+    rgba(165, 233, 255, 0.42) 100%
   );
-  box-shadow: 0 10px 22px rgba(116, 98, 194, 0.26);
+  box-shadow: 0 10px 24px rgba(66, 150, 235, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 #enter-dict-btn:hover,
 #enter-dict-btn-main:hover {
-  filter: saturate(1.08) brightness(1.03);
+  filter: saturate(1.05) brightness(1.04);
 }
 
 .primary-btn {
