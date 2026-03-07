@@ -232,6 +232,9 @@ function createState() {
       isAnswered: false,
       choices: []
     },
+    handwrite: {
+      currentWordId: raw?.handwrite?.currentWordId || null
+    },
     grammar: {
       level: raw?.grammar?.level || 'ALL',
       keyword: raw?.grammar?.keyword || ''
@@ -259,6 +262,9 @@ function persist() {
       wrongQueue: state.wrongQueue,
       quiz: {
         currentWordId: state.quiz.currentWordId
+      },
+      handwrite: {
+        currentWordId: state.handwrite.currentWordId
       },
       grammar: {
         level: state.grammar.level,
@@ -295,12 +301,14 @@ function renderTab(tab) {
     statsGrid.style.display = tab === 'dictionary' ? 'none' : 'grid';
   }
   if (contentToolbar) {
-    contentToolbar.style.display = tab === 'grammar' || tab === 'dictionary' ? 'none' : 'flex';
+    contentToolbar.style.display = tab === 'grammar' || tab === 'dictionary' || tab === 'handwrite' ? 'none' : 'flex';
   }
   if (tab === 'learn') {
     renderLearn();
   } else if (tab === 'quiz') {
     renderQuiz();
+  } else if (tab === 'handwrite') {
+    renderHandwrite();
   } else if (tab === 'grammar') {
     renderGrammar();
   } else if (tab === 'dictionary') {
@@ -497,6 +505,98 @@ function renderReview() {
 
   contentArea.replaceChildren(node, tip, actions);
   maybeAutoSpeak(word.ja);
+}
+
+function renderHandwrite() {
+  let word = getWordById(state.handwrite.currentWordId);
+  if (!word) {
+    word = getRandomWord();
+    state.handwrite.currentWordId = word?.id || null;
+    persist();
+  }
+  if (!word) {
+    contentArea.innerHTML = '<p class="empty">词库为空，无法进行手写练习。</p>';
+    return;
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'handwrite';
+
+  const title = document.createElement('h2');
+  title.textContent = `请手写：${word.zh}`;
+  wrapper.appendChild(title);
+
+  const hint = document.createElement('p');
+  hint.className = 'secondary';
+  hint.textContent = showKana.checked ? `提示假名：${word.kana || '（无）'}` : '可先在脑中想好写法，再下笔。';
+  wrapper.appendChild(hint);
+
+  const canvas = document.createElement('canvas');
+  canvas.className = 'handwrite-canvas';
+  wrapper.appendChild(canvas);
+
+  const answer = document.createElement('p');
+  answer.className = 'handwrite-answer secondary';
+  answer.textContent = '';
+  wrapper.appendChild(answer);
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.className = 'secondary';
+  clearBtn.textContent = '清空重写';
+
+  const showBtn = document.createElement('button');
+  showBtn.type = 'button';
+  showBtn.className = 'secondary';
+  showBtn.textContent = '显示答案';
+
+  const goodBtn = document.createElement('button');
+  goodBtn.type = 'button';
+  goodBtn.className = 'primary';
+  goodBtn.textContent = '写对了';
+
+  const againBtn = document.createElement('button');
+  againBtn.type = 'button';
+  againBtn.className = 'warn';
+  againBtn.textContent = '没写好';
+
+  const nextBtn = document.createElement('button');
+  nextBtn.type = 'button';
+  nextBtn.className = 'secondary';
+  nextBtn.textContent = '下一题';
+
+  actions.append(clearBtn, showBtn, goodBtn, againBtn, nextBtn);
+  wrapper.appendChild(actions);
+  contentArea.replaceChildren(wrapper);
+
+  const pad = initHandwritePad(canvas);
+  clearBtn.addEventListener('click', () => pad.clear());
+  showBtn.addEventListener('click', () => {
+    answer.textContent = `答案：${word.ja}${word.kana ? `（${word.kana}）` : ''}`;
+  });
+  goodBtn.addEventListener('click', () => {
+    applyReview(word.id, true);
+    playCorrectSfx();
+    state.handwrite.currentWordId = getRandomWordId(word.id);
+    persist();
+    renderHandwrite();
+  });
+  againBtn.addEventListener('click', () => {
+    applyReview(word.id, false);
+    enqueueWrongWord(word.id);
+    playWrongSfx();
+    state.handwrite.currentWordId = getRandomWordId(word.id);
+    persist();
+    renderHandwrite();
+  });
+  nextBtn.addEventListener('click', () => {
+    state.handwrite.currentWordId = getRandomWordId(word.id);
+    persist();
+    renderHandwrite();
+  });
 }
 
 function renderGrammar() {
@@ -1045,6 +1145,118 @@ function nextWordId(currentId) {
     return pool[0]?.id || null;
   }
   return pool[(currentIndex + 1) % pool.length].id;
+}
+
+function getRandomWord() {
+  const pool = getStudyPool();
+  if (pool.length === 0) {
+    return null;
+  }
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function getRandomWordId(excludeId = '') {
+  const pool = getStudyPool();
+  if (pool.length === 0) {
+    return null;
+  }
+  if (pool.length === 1) {
+    return pool[0].id;
+  }
+  let next = pool[Math.floor(Math.random() * pool.length)].id;
+  let guard = 0;
+  while (next === excludeId && guard < 20) {
+    next = pool[Math.floor(Math.random() * pool.length)].id;
+    guard += 1;
+  }
+  return next;
+}
+
+function initHandwritePad(canvas) {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return { clear() {} };
+  }
+
+  const ratio = window.devicePixelRatio || 1;
+  const width = Math.max(280, Math.min(680, contentArea?.clientWidth ? contentArea.clientWidth - 16 : 520));
+  const height = 240;
+  canvas.width = Math.floor(width * ratio);
+  canvas.height = Math.floor(height * ratio);
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  ctx.scale(ratio, ratio);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = '#2d3855';
+
+  const drawGrid = () => {
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = 'rgba(160,170,196,0.35)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(width / 2, 0);
+    ctx.lineTo(width / 2, height);
+    ctx.moveTo(0, height / 2);
+    ctx.lineTo(width, height / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = '#2d3855';
+    ctx.lineWidth = 5;
+  };
+  drawGrid();
+
+  let drawing = false;
+  let lastX = 0;
+  let lastY = 0;
+
+  const getPos = (event) => {
+    const rect = canvas.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  };
+
+  const start = (event) => {
+    event.preventDefault();
+    const pos = getPos(event);
+    drawing = true;
+    lastX = pos.x;
+    lastY = pos.y;
+  };
+  const move = (event) => {
+    if (!drawing) {
+      return;
+    }
+    event.preventDefault();
+    const pos = getPos(event);
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    lastX = pos.x;
+    lastY = pos.y;
+  };
+  const end = (event) => {
+    event.preventDefault();
+    drawing = false;
+  };
+
+  canvas.addEventListener('pointerdown', (event) => {
+    canvas.setPointerCapture(event.pointerId);
+    start(event);
+  });
+  canvas.addEventListener('pointermove', move);
+  canvas.addEventListener('pointerup', end);
+  canvas.addEventListener('pointercancel', end);
+
+  return {
+    clear() {
+      drawGrid();
+    }
+  };
 }
 
 function calcStreak() {

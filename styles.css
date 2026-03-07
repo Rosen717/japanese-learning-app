@@ -316,7 +316,7 @@ h2 {
 .tabs {
   margin-top: 0.9rem;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 0.4rem;
   padding: 0.36rem;
   border: 1px solid var(--line);
@@ -489,6 +489,19 @@ button.warn {
   padding: 1.4rem 0.6rem;
 }
 
+.handwrite-canvas {
+  margin-top: 0.65rem;
+  border: 1px solid rgba(169, 178, 206, 0.55);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: inset 0 1px 8px rgba(90, 112, 153, 0.08);
+  touch-action: none;
+}
+
+.handwrite-answer {
+  margin-top: 0.6rem;
+}
+
 .grammar-header h2 {
   margin: 0;
 }
@@ -568,7 +581,7 @@ button.warn {
   }
 
   .tabs {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .landing-top,
