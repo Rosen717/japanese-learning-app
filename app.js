@@ -12,6 +12,8 @@ const enterAppBtn = document.getElementById('enter-app-btn');
 const enterAppBtnMain = document.getElementById('enter-app-btn-main');
 const enterDictBtn = document.getElementById('enter-dict-btn');
 const enterDictBtnMain = document.getElementById('enter-dict-btn-main');
+const homeSearchBtn = document.getElementById('home-search-btn');
+const homeFeatureLinks = document.querySelectorAll('.feature-link');
 const backHomeBtn = document.getElementById('back-home-btn');
 const contentArea = document.getElementById('content-area');
 const template = document.getElementById('word-template');
@@ -60,6 +62,22 @@ function bindEvents() {
   if (enterDictBtnMain instanceof HTMLElement) {
     enterDictBtnMain.addEventListener('click', () => showStudyApp('dictionary'));
   }
+  if (homeSearchBtn instanceof HTMLElement) {
+    homeSearchBtn.addEventListener('click', () => openQuickSearch());
+  }
+  homeFeatureLinks.forEach((card) => {
+    const targetTab = card.getAttribute('data-home-tab');
+    if (!targetTab) {
+      return;
+    }
+    card.addEventListener('click', () => showStudyApp(targetTab));
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        showStudyApp(targetTab);
+      }
+    });
+  });
   if (backHomeBtn instanceof HTMLElement) {
     backHomeBtn.addEventListener('click', showHome);
   }
@@ -103,7 +121,7 @@ function showHome() {
 function showStudyApp(targetTab = null) {
   homePage?.classList.add('is-hidden');
   studyApp?.classList.remove('is-hidden');
-  if (targetTab === 'dictionary') {
+  if (targetTab === 'dictionary' || targetTab === 'search') {
     void ensureDictionaryData();
   }
   if (targetTab) {
@@ -112,6 +130,15 @@ function showStudyApp(targetTab = null) {
     renderTab(targetTab);
     persist();
   }
+}
+
+function openQuickSearch() {
+  const input = window.prompt('输入关键词（搜索词典和语法）', state.search.keyword || '');
+  if (input === null) {
+    return;
+  }
+  state.search.keyword = input.trim();
+  showStudyApp('search');
 }
 
 function createState() {
@@ -152,6 +179,9 @@ function createState() {
     dictionary: {
       level: raw?.dictionary?.level || 'ALL',
       keyword: raw?.dictionary?.keyword || ''
+    },
+    search: {
+      keyword: raw?.search?.keyword || ''
     }
   };
 }
@@ -177,6 +207,9 @@ function persist() {
       dictionary: {
         level: state.dictionary.level,
         keyword: state.dictionary.keyword
+      },
+      search: {
+        keyword: state.search.keyword
       }
     })
   );
@@ -199,7 +232,7 @@ function refreshStats() {
 
 function renderTab(tab) {
   if (contentToolbar) {
-    contentToolbar.style.display = tab === 'grammar' || tab === 'dictionary' ? 'none' : 'flex';
+    contentToolbar.style.display = tab === 'grammar' || tab === 'dictionary' || tab === 'search' ? 'none' : 'flex';
   }
   if (tab === 'learn') {
     renderLearn();
@@ -209,6 +242,8 @@ function renderTab(tab) {
     renderGrammar();
   } else if (tab === 'dictionary') {
     renderDictionary();
+  } else if (tab === 'search') {
+    renderSearch();
   } else {
     renderReview();
   }
@@ -571,6 +606,107 @@ function renderDictionary() {
   updateDictionaryResults(list, total);
   wrapper.append(header, controls, total, list);
   contentArea.replaceChildren(wrapper);
+}
+
+function renderSearch() {
+  if (!dictionaryLoaded) {
+    void ensureDictionaryData();
+    contentArea.innerHTML = '<p class="empty">搜索数据加载中…</p>';
+    return;
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'grammar-page';
+
+  const header = document.createElement('div');
+  header.className = 'grammar-header';
+  header.innerHTML = '<h2>全局搜索</h2><p class="secondary">同时搜索单词词典与语法库</p>';
+
+  const search = document.createElement('input');
+  search.type = 'search';
+  search.className = 'grammar-search';
+  search.placeholder = '输入任意关键词，例如 食べる / 〜ように / 朋友';
+  search.value = state.search.keyword;
+  let isComposing = false;
+  search.addEventListener('compositionstart', () => {
+    isComposing = true;
+  });
+  search.addEventListener('compositionend', () => {
+    isComposing = false;
+    state.search.keyword = search.value.trim();
+    persist();
+    updateSearchResults(list, total);
+  });
+  search.addEventListener('input', () => {
+    if (isComposing) {
+      return;
+    }
+    state.search.keyword = search.value.trim();
+    persist();
+    updateSearchResults(list, total);
+  });
+
+  const total = document.createElement('p');
+  total.className = 'secondary';
+  const list = document.createElement('div');
+  list.className = 'grammar-list';
+
+  wrapper.append(header, search, total, list);
+  contentArea.replaceChildren(wrapper);
+  updateSearchResults(list, total);
+}
+
+function updateSearchResults(list, total) {
+  const keyword = state.search.keyword.trim().toLowerCase();
+  list.replaceChildren();
+
+  if (!keyword) {
+    total.textContent = '请输入关键词开始搜索';
+    list.innerHTML = '<p class="empty">可搜索单词、释义、例句、语法句型。</p>';
+    return;
+  }
+
+  const vocabResults = dictionaryEntries
+    .filter((item) =>
+      [item.ja, item.kana, item.romaji, item.zh, item.part, item.sentenceJa, item.sentenceZh].join(' ').toLowerCase().includes(keyword)
+    )
+    .slice(0, 30);
+
+  const grammarResults = GRAMMAR.filter((item) =>
+    [item.pattern, item.meaning, item.exampleJa, item.exampleZh, item.note].join(' ').toLowerCase().includes(keyword)
+  ).slice(0, 20);
+
+  total.textContent = `找到 ${vocabResults.length} 条单词，${grammarResults.length} 条语法`;
+
+  if (vocabResults.length === 0 && grammarResults.length === 0) {
+    list.innerHTML = '<p class="empty">没有匹配结果。</p>';
+    return;
+  }
+
+  vocabResults.forEach((item) => {
+    const card = document.createElement('article');
+    card.className = 'grammar-card';
+    card.innerHTML = [
+      '<p class="badge">单词</p>',
+      `<h3>${item.ja}</h3>`,
+      `<p class="secondary">${item.kana || ''}${item.romaji ? ` · ${item.romaji}` : ''}</p>`,
+      `<p class="meaning">${item.zh}</p>`
+    ].join('');
+    list.appendChild(card);
+  });
+
+  grammarResults.forEach((item) => {
+    const card = document.createElement('article');
+    card.className = 'grammar-card';
+    card.innerHTML = [
+      `<p class="badge">语法 · ${item.level}</p>`,
+      `<h3>${item.pattern}</h3>`,
+      `<p class="meaning">${item.meaning}</p>`,
+      `<p>${item.exampleJa}</p>`,
+      `<p class="secondary">${item.exampleZh}</p>`
+    ].join('');
+    list.appendChild(card);
+  });
 }
 
 function updateDictionaryResults(list, total) {
