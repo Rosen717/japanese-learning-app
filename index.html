@@ -14,7 +14,10 @@
       <section class="landing-shell" id="home-page">
         <header class="landing-top">
           <p class="kicker">YomuNavi</p>
-          <button id="enter-app-btn" class="primary-btn" type="button">开始学习</button>
+          <div class="hero-actions">
+            <button id="enter-app-btn" class="primary-btn" type="button">开始学习</button>
+            <button id="enter-dict-btn" class="ghost-btn" type="button">打开词典</button>
+          </div>
         </header>
         <div class="hero-card">
           <p class="hero-eyebrow">JLPT N5 STARTER</p>
@@ -22,6 +25,7 @@
           <p class="hero-lead">每天 10 分钟，学词、测验、复习三步闭环，轻量但持续。</p>
           <div class="hero-actions">
             <button id="enter-app-btn-main" class="primary-btn big" type="button">进入学习</button>
+            <button id="enter-dict-btn-main" class="ghost-btn" type="button">进入词典</button>
             <span class="hero-note">内置语音点读 + 间隔复习</span>
           </div>
         </div>
@@ -66,12 +70,26 @@
             <p>待复习</p>
             <strong id="due-count">0</strong>
           </article>
+          <article class="stat-card">
+            <p>每日目标</p>
+            <strong id="goal-count">0/30</strong>
+          </article>
+          <article class="stat-card">
+            <p>正确率</p>
+            <strong id="accuracy-count">0%</strong>
+          </article>
+          <article class="stat-card">
+            <p>错题池</p>
+            <strong id="wrong-count">0</strong>
+          </article>
         </section>
 
         <nav class="tabs" aria-label="学习模式">
           <button class="tab is-active" type="button" data-tab="learn">学习</button>
           <button class="tab" type="button" data-tab="quiz">测验</button>
           <button class="tab" type="button" data-tab="review">复习</button>
+          <button class="tab" type="button" data-tab="grammar">语法</button>
+          <button class="tab" type="button" data-tab="dictionary">词典</button>
         </nav>
 
         <section class="card" id="content-card">
@@ -79,6 +97,7 @@
             <label><input type="checkbox" id="show-kana" checked /> 显示假名</label>
             <label><input type="checkbox" id="show-romaji" /> 显示罗马音</label>
             <label><input type="checkbox" id="auto-speak" /> 自动发音</label>
+            <label><input type="checkbox" id="quiz-wrong-only" /> 只练错题</label>
             <span id="voice-status" class="voice-status">语音：可用</span>
           </div>
           <div id="content-area"></div>
