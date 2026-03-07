@@ -13,8 +13,14 @@ const enterAppBtnMain = document.getElementById('enter-app-btn-main');
 const enterDictBtn = document.getElementById('enter-dict-btn');
 const enterDictBtnMain = document.getElementById('enter-dict-btn-main');
 const homeSearchBtn = document.getElementById('home-search-btn');
+const appSearchBtn = document.getElementById('app-search-btn');
 const homeFeatureLinks = document.querySelectorAll('.feature-link');
 const backHomeBtn = document.getElementById('back-home-btn');
+const globalSearchModal = document.getElementById('global-search-modal');
+const closeSearchBtn = document.getElementById('close-search-btn');
+const globalSearchInput = document.getElementById('global-search-input');
+const globalSearchTotal = document.getElementById('global-search-total');
+const globalSearchList = document.getElementById('global-search-list');
 const contentArea = document.getElementById('content-area');
 const template = document.getElementById('word-template');
 const resetBtn = document.getElementById('reset-btn');
@@ -24,6 +30,7 @@ const autoSpeak = document.getElementById('auto-speak');
 const quizWrongOnly = document.getElementById('quiz-wrong-only');
 const voiceStatus = document.getElementById('voice-status');
 const contentToolbar = document.querySelector('.toolbar');
+const statsGrid = document.querySelector('.stats-grid');
 const todayCountEl = document.getElementById('today-count');
 const streakCountEl = document.getElementById('streak-count');
 const dueCountEl = document.getElementById('due-count');
@@ -65,6 +72,44 @@ function bindEvents() {
   if (homeSearchBtn instanceof HTMLElement) {
     homeSearchBtn.addEventListener('click', () => openQuickSearch());
   }
+  if (appSearchBtn instanceof HTMLElement) {
+    appSearchBtn.addEventListener('click', () => openQuickSearch());
+  }
+  if (closeSearchBtn instanceof HTMLElement) {
+    closeSearchBtn.addEventListener('click', closeQuickSearch);
+  }
+  if (globalSearchModal instanceof HTMLElement) {
+    globalSearchModal.addEventListener('click', (event) => {
+      if (event.target === globalSearchModal) {
+        closeQuickSearch();
+      }
+    });
+  }
+  if (globalSearchInput instanceof HTMLInputElement) {
+    let isComposing = false;
+    globalSearchInput.addEventListener('compositionstart', () => {
+      isComposing = true;
+    });
+    globalSearchInput.addEventListener('compositionend', () => {
+      isComposing = false;
+      state.search.keyword = globalSearchInput.value.trim();
+      persist();
+      updateSearchResults(globalSearchList, globalSearchTotal);
+    });
+    globalSearchInput.addEventListener('input', () => {
+      if (isComposing) {
+        return;
+      }
+      state.search.keyword = globalSearchInput.value.trim();
+      persist();
+      updateSearchResults(globalSearchList, globalSearchTotal);
+    });
+  }
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && globalSearchModal && !globalSearchModal.classList.contains('is-hidden')) {
+      closeQuickSearch();
+    }
+  });
   homeFeatureLinks.forEach((card) => {
     const targetTab = card.getAttribute('data-home-tab');
     if (!targetTab) {
@@ -121,7 +166,7 @@ function showHome() {
 function showStudyApp(targetTab = null) {
   homePage?.classList.add('is-hidden');
   studyApp?.classList.remove('is-hidden');
-  if (targetTab === 'dictionary' || targetTab === 'search') {
+  if (targetTab === 'dictionary' || targetTab === 'grammar') {
     void ensureDictionaryData();
   }
   if (targetTab) {
@@ -133,16 +178,31 @@ function showStudyApp(targetTab = null) {
 }
 
 function openQuickSearch() {
-  const input = window.prompt('输入关键词（搜索词典和语法）', state.search.keyword || '');
-  if (input === null) {
+  if (!globalSearchModal || !globalSearchInput || !globalSearchList || !globalSearchTotal) {
     return;
   }
-  state.search.keyword = input.trim();
-  showStudyApp('search');
+  if (!dictionaryLoaded) {
+    void ensureDictionaryData();
+  }
+  globalSearchModal.classList.remove('is-hidden');
+  globalSearchModal.setAttribute('aria-hidden', 'false');
+  globalSearchInput.value = state.search.keyword || '';
+  updateSearchResults(globalSearchList, globalSearchTotal);
+  globalSearchInput.focus();
+}
+
+function closeQuickSearch() {
+  if (!globalSearchModal) {
+    return;
+  }
+  globalSearchModal.classList.add('is-hidden');
+  globalSearchModal.setAttribute('aria-hidden', 'true');
 }
 
 function createState() {
   const raw = safeParse(localStorage.getItem(STORAGE_KEY));
+  const rawTab = raw?.activeTab || 'learn';
+  const activeTab = rawTab === 'search' ? 'dictionary' : rawTab;
   const cardMap = new Map((raw?.cards || []).map((card) => [card.id, card]));
 
   const cards = VOCAB.map((word) => {
@@ -159,7 +219,7 @@ function createState() {
   });
 
   return {
-    activeTab: raw?.activeTab || 'learn',
+    activeTab,
     activeWordId: raw?.activeWordId || VOCAB[0].id,
     cards,
     activity: raw?.activity || {},
@@ -231,8 +291,11 @@ function refreshStats() {
 }
 
 function renderTab(tab) {
+  if (statsGrid instanceof HTMLElement) {
+    statsGrid.style.display = tab === 'dictionary' ? 'none' : 'grid';
+  }
   if (contentToolbar) {
-    contentToolbar.style.display = tab === 'grammar' || tab === 'dictionary' || tab === 'search' ? 'none' : 'flex';
+    contentToolbar.style.display = tab === 'grammar' || tab === 'dictionary' ? 'none' : 'flex';
   }
   if (tab === 'learn') {
     renderLearn();
@@ -242,8 +305,6 @@ function renderTab(tab) {
     renderGrammar();
   } else if (tab === 'dictionary') {
     renderDictionary();
-  } else if (tab === 'search') {
-    renderSearch();
   } else {
     renderReview();
   }
@@ -608,73 +669,22 @@ function renderDictionary() {
   contentArea.replaceChildren(wrapper);
 }
 
-function renderSearch() {
-  if (!dictionaryLoaded) {
-    void ensureDictionaryData();
-    contentArea.innerHTML = '<p class="empty">搜索数据加载中…</p>';
-    return;
-  }
-
-  const wrapper = document.createElement('div');
-  wrapper.className = 'grammar-page';
-
-  const header = document.createElement('div');
-  header.className = 'grammar-header';
-  header.innerHTML = '<h2>全局搜索</h2><p class="secondary">同时搜索单词词典与语法库</p>';
-
-  const search = document.createElement('input');
-  search.type = 'search';
-  search.className = 'grammar-search';
-  search.placeholder = '输入任意关键词，例如 食べる / 〜ように / 朋友';
-  search.value = state.search.keyword;
-  let isComposing = false;
-  search.addEventListener('compositionstart', () => {
-    isComposing = true;
-  });
-  search.addEventListener('compositionend', () => {
-    isComposing = false;
-    state.search.keyword = search.value.trim();
-    persist();
-    updateSearchResults(list, total);
-  });
-  search.addEventListener('input', () => {
-    if (isComposing) {
-      return;
-    }
-    state.search.keyword = search.value.trim();
-    persist();
-    updateSearchResults(list, total);
-  });
-
-  const total = document.createElement('p');
-  total.className = 'secondary';
-  const list = document.createElement('div');
-  list.className = 'grammar-list';
-
-  wrapper.append(header, search, total, list);
-  contentArea.replaceChildren(wrapper);
-  updateSearchResults(list, total);
-}
-
 function updateSearchResults(list, total) {
   const keyword = state.search.keyword.trim().toLowerCase();
   list.replaceChildren();
 
   if (!keyword) {
-    total.textContent = '请输入关键词开始搜索';
-    list.innerHTML = '<p class="empty">可搜索单词、释义、例句、语法句型。</p>';
+    total.textContent = '输入关键词后可直接跳转到词典或语法页';
+    list.innerHTML = '<p class="empty">请输入关键词。</p>';
     return;
   }
 
-  const vocabResults = dictionaryEntries
-    .filter((item) =>
-      [item.ja, item.kana, item.romaji, item.zh, item.part, item.sentenceJa, item.sentenceZh].join(' ').toLowerCase().includes(keyword)
-    )
-    .slice(0, 30);
-
+  const vocabResults = dictionaryEntries.filter((item) =>
+    [item.ja, item.kana, item.romaji, item.zh, item.part, item.sentenceJa, item.sentenceZh].join(' ').toLowerCase().includes(keyword)
+  );
   const grammarResults = GRAMMAR.filter((item) =>
     [item.pattern, item.meaning, item.exampleJa, item.exampleZh, item.note].join(' ').toLowerCase().includes(keyword)
-  ).slice(0, 20);
+  );
 
   total.textContent = `找到 ${vocabResults.length} 条单词，${grammarResults.length} 条语法`;
 
@@ -683,30 +693,38 @@ function updateSearchResults(list, total) {
     return;
   }
 
-  vocabResults.forEach((item) => {
-    const card = document.createElement('article');
-    card.className = 'grammar-card';
-    card.innerHTML = [
-      '<p class="badge">单词</p>',
-      `<h3>${item.ja}</h3>`,
-      `<p class="secondary">${item.kana || ''}${item.romaji ? ` · ${item.romaji}` : ''}</p>`,
-      `<p class="meaning">${item.zh}</p>`
-    ].join('');
-    list.appendChild(card);
-  });
+  if (vocabResults.length > 0) {
+    const goDict = document.createElement('button');
+    goDict.type = 'button';
+    goDict.className = 'primary';
+    goDict.textContent = `查看词典结果（${vocabResults.length}）`;
+    goDict.addEventListener('click', () => {
+      state.dictionary.keyword = state.search.keyword.trim();
+      state.dictionary.level = 'ALL';
+      state.activeTab = 'dictionary';
+      persist();
+      closeQuickSearch();
+      showStudyApp('dictionary');
+    });
+    list.appendChild(goDict);
+  }
 
-  grammarResults.forEach((item) => {
-    const card = document.createElement('article');
-    card.className = 'grammar-card';
-    card.innerHTML = [
-      `<p class="badge">语法 · ${item.level}</p>`,
-      `<h3>${item.pattern}</h3>`,
-      `<p class="meaning">${item.meaning}</p>`,
-      `<p>${item.exampleJa}</p>`,
-      `<p class="secondary">${item.exampleZh}</p>`
-    ].join('');
-    list.appendChild(card);
-  });
+  if (grammarResults.length > 0) {
+    const goGrammar = document.createElement('button');
+    goGrammar.type = 'button';
+    goGrammar.className = 'secondary';
+    goGrammar.style.marginLeft = '0.6rem';
+    goGrammar.textContent = `查看语法结果（${grammarResults.length}）`;
+    goGrammar.addEventListener('click', () => {
+      state.grammar.keyword = state.search.keyword.trim();
+      state.grammar.level = 'ALL';
+      state.activeTab = 'grammar';
+      persist();
+      closeQuickSearch();
+      showStudyApp('grammar');
+    });
+    list.appendChild(goGrammar);
+  }
 }
 
 function updateDictionaryResults(list, total) {

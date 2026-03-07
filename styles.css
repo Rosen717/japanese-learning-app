@@ -108,6 +108,42 @@ select {
   box-shadow: 0 8px 18px rgba(92, 113, 151, 0.16);
 }
 
+.search-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(29, 34, 52, 0.38);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(1rem, 4vw, 2rem) 1rem;
+  z-index: 40;
+}
+
+.search-modal-card {
+  width: min(760px, 100%);
+  max-height: 86vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-soft);
+  padding: 1rem;
+}
+
+.search-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.search-modal-head h2 {
+  margin: 0;
+}
+
 .hero-note {
   font-size: 0.86rem;
   color: #65839a;
@@ -197,6 +233,13 @@ h2 {
 .ghost-btn.small {
   font-size: 0.8rem;
   padding: 0.34rem 0.74rem;
+}
+
+#back-home-btn {
+  background: rgba(255, 214, 92, 0.9);
+  border: 1px solid rgba(238, 185, 46, 0.85);
+  color: #5a4203;
+  font-weight: 800;
 }
 
 #enter-dict-btn,

@@ -51,7 +51,10 @@
             <p class="kicker">RosenNavi</p>
             <h1>日语学习 MVP</h1>
           </div>
-          <button id="reset-btn" class="ghost-btn" type="button">重置进度</button>
+          <div class="hero-actions">
+            <button id="app-search-btn" class="icon-btn" type="button" aria-label="搜索">🔍</button>
+            <button id="reset-btn" class="ghost-btn" type="button">重置进度</button>
+          </div>
         </header>
         <div class="back-row">
           <button id="back-home-btn" class="ghost-btn small" type="button">返回首页</button>
@@ -104,6 +107,18 @@
         </section>
       </section>
     </main>
+
+    <div id="global-search-modal" class="search-modal is-hidden" aria-hidden="true">
+      <div class="search-modal-card">
+        <div class="search-modal-head">
+          <h2>全局搜索</h2>
+          <button id="close-search-btn" class="ghost-btn small" type="button">关闭</button>
+        </div>
+        <input id="global-search-input" class="grammar-search" type="search" placeholder="搜索单词或语法，例如 食べる / 〜ように / 朋友" />
+        <p id="global-search-total" class="secondary"></p>
+        <div id="global-search-list" class="grammar-list"></div>
+      </div>
+    </div>
 
     <template id="word-template">
       <article class="word-panel">
