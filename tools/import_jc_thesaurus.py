@@ -91,7 +91,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, help="Path to final.json")
     parser.add_argument("--output", required=True, help="Output JSON path")
-    parser.add_argument("--default-jlpt", default="N5")
+    parser.add_argument("--default-jlpt", default="UNK")
     args = parser.parse_args()
 
     src = Path(args.input)
