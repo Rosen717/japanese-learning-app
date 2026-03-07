@@ -235,11 +235,13 @@ h2 {
   padding: 0.34rem 0.74rem;
 }
 
+.back-home-btn,
 #back-home-btn {
-  background: rgba(255, 214, 92, 0.9);
-  border: 1px solid rgba(238, 185, 46, 0.85);
-  color: #5a4203;
-  font-weight: 800;
+  background: #ffd54f !important;
+  border: 1px solid #f2b128 !important;
+  color: #5b3d00 !important;
+  font-weight: 800 !important;
+  box-shadow: 0 8px 18px rgba(236, 184, 52, 0.3);
 }
 
 #enter-dict-btn,
