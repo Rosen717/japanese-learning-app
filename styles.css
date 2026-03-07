@@ -458,6 +458,18 @@ button.warn {
   padding: 0.46rem 0.67rem;
 }
 
+.speak-row .small-btn[data-action='speak-word'] {
+  background: rgba(255, 196, 220, 0.55);
+  color: #844b67;
+  border: 1px solid rgba(233, 154, 190, 0.6);
+}
+
+.speak-row .small-btn[data-action='speak-sentence'] {
+  background: rgba(187, 224, 255, 0.58);
+  color: #3f6284;
+  border: 1px solid rgba(141, 194, 236, 0.62);
+}
+
 .quiz-option {
   text-align: left;
   background: rgba(255, 255, 255, 0.78);
