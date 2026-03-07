@@ -53,11 +53,22 @@ def load_map(path: Path) -> dict[tuple[str, str], str]:
 
     out: dict[tuple[str, str], str] = {}
     for r in rows:
-        ja = norm(r.get("ja") or r.get("word") or r.get("japanese") or r.get("単語"))
+        ja = norm(
+            r.get("ja")
+            or r.get("word")
+            or r.get("Word")
+            or r.get("japanese")
+            or r.get("単語")
+        )
         if not ja:
             continue
-        kana = norm(r.get("kana") or r.get("reading") or r.get("かな"))
-        jlpt = normalize_level(r.get("jlpt") or r.get("level") or r.get("JLPT"))
+        kana = norm(r.get("kana") or r.get("reading") or r.get("Reading") or r.get("かな"))
+        jlpt = normalize_level(
+            r.get("jlpt")
+            or r.get("level")
+            or r.get("JLPT")
+            or r.get("JLPTLevel")
+        )
         if not jlpt:
             continue
         out[(ja, kana)] = jlpt
@@ -96,7 +107,7 @@ def main() -> None:
             row["jlpt"] = lv
             updated += 1
         else:
-            row["jlpt"] = row.get("jlpt") if normalize_level(row.get("jlpt")) else "UNK"
+            row["jlpt"] = "UNK"
 
     out_path.write_text(json.dumps(base, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"done: {len(base)} entries, leveled={updated}, output={out_path}")
