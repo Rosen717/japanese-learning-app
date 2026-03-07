@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YomuNavi 日语学习 MVP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <section class="landing-shell" id="home-page">
+        <header class="landing-top">
+          <p class="kicker">YomuNavi</p>
+          <button id="enter-app-btn" class="primary-btn" type="button">开始学习</button>
+        </header>
+        <div class="hero-card">
+          <p class="hero-eyebrow">JLPT N5 STARTER</p>
+          <h1>像刷短视频一样<br />学日语单词</h1>
+          <p class="hero-lead">每天 10 分钟，学词、测验、复习三步闭环，轻量但持续。</p>
+          <div class="hero-actions">
+            <button id="enter-app-btn-main" class="primary-btn big" type="button">进入学习</button>
+            <span class="hero-note">内置语音点读 + 间隔复习</span>
+          </div>
+        </div>
+        <section class="feature-grid">
+          <article class="feature-item">
+            <h2>快学</h2>
+            <p>词条卡片 + 例句，快速建立语感，不需要复杂操作。</p>
+          </article>
+          <article class="feature-item">
+            <h2>快测</h2>
+            <p>4 选 1 小测验，随学随测，立即知道是否记住。</p>
+          </article>
+          <article class="feature-item">
+            <h2>快复习</h2>
+            <p>按遗忘曲线安排复习，减少死记硬背，提高留存。</p>
+          </article>
+        </section>
+      </section>
+
+      <section class="app-shell is-hidden" id="study-app">
+        <header class="topbar">
+          <div>
+            <p class="kicker">YomuNavi</p>
+            <h1>日语学习 MVP</h1>
+          </div>
+          <button id="reset-btn" class="ghost-btn" type="button">重置进度</button>
+        </header>
+        <div class="back-row">
+          <button id="back-home-btn" class="ghost-btn small" type="button">返回首页</button>
+        </div>
+
+        <section class="stats-grid">
+          <article class="stat-card">
+            <p>今日学习</p>
+            <strong id="today-count">0</strong>
+          </article>
+          <article class="stat-card">
+            <p>连续打卡</p>
+            <strong id="streak-count">0 天</strong>
+          </article>
+          <article class="stat-card">
+            <p>待复习</p>
+            <strong id="due-count">0</strong>
+          </article>
+        </section>
+
+        <nav class="tabs" aria-label="学习模式">
+          <button class="tab is-active" type="button" data-tab="learn">学习</button>
+          <button class="tab" type="button" data-tab="quiz">测验</button>
+          <button class="tab" type="button" data-tab="review">复习</button>
+        </nav>
+
+        <section class="card" id="content-card">
+          <div class="toolbar">
+            <label><input type="checkbox" id="show-kana" checked /> 显示假名</label>
+            <label><input type="checkbox" id="show-romaji" /> 显示罗马音</label>
+            <label><input type="checkbox" id="auto-speak" /> 自动发音</label>
+            <span id="voice-status" class="voice-status">语音：可用</span>
+          </div>
+          <div id="content-area"></div>
+        </section>
+      </section>
+    </main>
+
+    <template id="word-template">
+      <article class="word-panel">
+        <p class="badge" data-role="jlpt"></p>
+        <h2 data-role="ja"></h2>
+        <p class="reading" data-role="kana"></p>
+        <p class="reading secondary" data-role="romaji"></p>
+        <p class="meaning" data-role="zh"></p>
+        <p class="part" data-role="part"></p>
+        <div class="speak-row">
+          <button class="small-btn" type="button" data-action="speak-word">发音：单词</button>
+          <button class="small-btn" type="button" data-action="speak-sentence">发音：例句</button>
+        </div>
+        <div class="example">
+          <p data-role="sentence-ja"></p>
+          <p class="secondary" data-role="sentence-zh"></p>
+        </div>
+      </article>
+    </template>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
