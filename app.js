@@ -247,6 +247,10 @@ function createState() {
     handwrite: {
       currentWordId: raw?.handwrite?.currentWordId || null
     },
+    session: {
+      ids: Array.isArray(raw?.session?.ids) ? raw.session.ids.filter((x) => typeof x === 'string') : [],
+      index: Number.isInteger(raw?.session?.index) ? raw.session.index : 0
+    },
     grammar: {
       level: raw?.grammar?.level || 'ALL',
       keyword: raw?.grammar?.keyword || ''
@@ -256,12 +260,13 @@ function createState() {
       keyword: raw?.dictionary?.keyword || ''
     },
     book: {
-      level: raw?.book?.level || 'N5'
+      level: raw?.book?.level || 'ALL'
     },
     list: {
       chunkIndex: Number.isInteger(raw?.list?.chunkIndex) ? raw.list.chunkIndex : 0,
       checkins: raw?.list?.checkins && typeof raw.list.checkins === 'object' ? raw.list.checkins : {},
-      startDates: raw?.list?.startDates && typeof raw.list.startDates === 'object' ? raw.list.startDates : {}
+      startDates: raw?.list?.startDates && typeof raw.list.startDates === 'object' ? raw.list.startDates : {},
+      orderIds: Array.isArray(raw?.list?.orderIds) ? raw.list.orderIds.filter((x) => typeof x === 'string') : []
     },
     marks: raw?.marks && typeof raw.marks === 'object' ? raw.marks : {},
     search: {
@@ -287,6 +292,10 @@ function persist() {
       handwrite: {
         currentWordId: state.handwrite.currentWordId
       },
+      session: {
+        ids: state.session.ids,
+        index: state.session.index
+      },
       grammar: {
         level: state.grammar.level,
         keyword: state.grammar.keyword
@@ -301,7 +310,8 @@ function persist() {
       list: {
         chunkIndex: state.list.chunkIndex,
         checkins: state.list.checkins,
-        startDates: state.list.startDates
+        startDates: state.list.startDates,
+        orderIds: state.list.orderIds
       },
       marks: state.marks,
       search: {
@@ -359,34 +369,16 @@ function renderTab(tab) {
 }
 
 function renderBook() {
+  if (state.book.level !== 'ALL') {
+    state.book.level = 'ALL';
+    persist();
+  }
   const wrapper = document.createElement('div');
   wrapper.className = 'book-home';
 
   const header = document.createElement('div');
   header.className = 'grammar-header';
   header.innerHTML = '<h2>我的词书</h2><p class="secondary">先列表速背，再卡片精学，最后默写巩固</p>';
-
-  const levels = ['N5', 'N4', 'N3', 'N2', 'N1', 'ALL'];
-  const currentIndex = Math.max(0, levels.indexOf(state.book.level));
-  const selector = document.createElement('div');
-  selector.className = 'book-selector';
-  selector.innerHTML = [
-    '<button class="ghost-btn small" type="button" data-role="prev">‹</button>',
-    `<span class="book-selector-chip">${state.book.level === 'ALL' ? '全部词书' : `${state.book.level} 词书`}</span>`,
-    '<button class="ghost-btn small" type="button" data-role="next">›</button>'
-  ].join('');
-  selector.querySelector('[data-role="prev"]')?.addEventListener('click', () => {
-    const idx = (currentIndex - 1 + levels.length) % levels.length;
-    state.book.level = levels[idx];
-    persist();
-    renderBook();
-  });
-  selector.querySelector('[data-role="next"]')?.addEventListener('click', () => {
-    const idx = (currentIndex + 1) % levels.length;
-    state.book.level = levels[idx];
-    persist();
-    renderBook();
-  });
 
   const words = getBookWords();
   const known = words.filter((w) => getWordMark(w.id) === 'known').length;
@@ -398,7 +390,6 @@ function renderBook() {
   deck.innerHTML = [
     '<div class="book-side book-left"><span>Vocabulary</span></div>',
     '<button class="book-main" type="button" aria-label="进入词书学习">',
-    `  <p class="book-tag">${state.book.level === 'ALL' ? '全部词书' : `${state.book.level} 词书`}</p>`,
     '  <h3>Vocabulary</h3>',
     '  <p>Learning Planner</p>',
     '  <i class="book-ribbon" aria-hidden="true"></i>',
@@ -434,12 +425,12 @@ function renderBook() {
   toDict.addEventListener('click', () => showStudyApp('dictation'));
   actions.append(toList, toCard, toDict);
 
-  wrapper.append(header, selector, deck, progress, actions);
+  wrapper.append(header, deck, progress, actions);
   contentArea.replaceChildren(wrapper);
 }
 
 function renderListStage() {
-  const words = getBookWords();
+  const words = getMixedAllWords();
   const chunks = splitIntoChunks(words, 20);
   if (chunks.length === 0) {
     contentArea.innerHTML = '<p class="empty">当前等级没有单词。</p>';
@@ -459,7 +450,17 @@ function renderListStage() {
 
   const header = document.createElement('div');
   header.className = 'grammar-header';
-  header.innerHTML = `<h2>单词列表速背</h2><p class="secondary">${state.book.level === 'ALL' ? '全部词书' : state.book.level} · 每组 20 词</p>`;
+  header.innerHTML = `<h2>单词列表速背</h2><p class="secondary">全部词库 · 每组 20 词</p>`;
+  const reshuffleBtn = document.createElement('button');
+  reshuffleBtn.type = 'button';
+  reshuffleBtn.className = 'ghost-btn small';
+  reshuffleBtn.textContent = '重新打乱';
+  reshuffleBtn.addEventListener('click', () => {
+    state.list.orderIds = buildMixedOrder(getAllWords());
+    state.list.chunkIndex = 0;
+    persist();
+    renderListStage();
+  });
 
   const layout = document.createElement('div');
   layout.className = 'list-layout';
@@ -516,6 +517,7 @@ function renderListStage() {
   tableWrap.appendChild(table);
 
   const quickWords = document.createElement('div');
+  quickWords.id = 'today-word-list';
   quickWords.className = 'grammar-list';
   chunkWords.forEach((word, idx) => {
     const row = document.createElement('article');
@@ -527,6 +529,14 @@ function renderListStage() {
       `<p class="meaning">${word.zh}</p>`,
       `<p class="secondary">当前标记：${mark === 'known' ? '已记得' : mark === 'fuzzy' ? '模糊' : '未学'}</p>`
     ].join('');
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', (event) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest('.speak-row')) {
+        return;
+      }
+      startCardSessionFromChunk(chunkWords, idx);
+    });
     const actions = document.createElement('div');
     actions.className = 'speak-row';
     const knownBtn = document.createElement('button');
@@ -567,7 +577,7 @@ function renderListStage() {
   flowActions.querySelector('#go-card-stage')?.addEventListener('click', () => showStudyApp('card'));
   flowActions.querySelector('#go-dict-stage')?.addEventListener('click', () => showStudyApp('dictation'));
 
-  wrapper.append(header, layout, flowActions);
+  wrapper.append(header, reshuffleBtn, layout, flowActions);
   contentArea.replaceChildren(wrapper);
 }
 
@@ -1190,7 +1200,7 @@ function buildWordIndex(list) {
 }
 
 function getStudyPool() {
-  const base = getBookWords();
+  const base = state.activeTab === 'card' ? getAllWords() : getBookWords();
   if (state.activeTab === 'card' || state.activeTab === 'dictation') {
     const filtered = base.filter((word) => {
       const mark = getWordMark(word.id);
@@ -1209,6 +1219,78 @@ function getBookWords() {
     return all;
   }
   return all.filter((word) => normalizeJlpt(word.jlpt) === state.book.level);
+}
+
+function getAllWords() {
+  return dictionaryEntries.length > 0 ? dictionaryEntries : VOCAB;
+}
+
+function getMixedAllWords() {
+  const words = getAllWords();
+  ensureListOrder(words);
+  const idToWord = new Map(words.map((w) => [w.id, w]));
+  const ordered = [];
+  for (const id of state.list.orderIds) {
+    const word = idToWord.get(id);
+    if (word) {
+      ordered.push(word);
+    }
+  }
+  // Fallback append if any new ids were not in cached order.
+  for (const word of words) {
+    if (!state.list.orderIds.includes(word.id)) {
+      ordered.push(word);
+    }
+  }
+  return ordered;
+}
+
+function ensureListOrder(words) {
+  const ids = words.map((w) => w.id);
+  const idSet = new Set(ids);
+  const cached = state.list.orderIds || [];
+  const validCached = cached.filter((id) => idSet.has(id));
+  if (validCached.length === ids.length) {
+    state.list.orderIds = validCached;
+    return;
+  }
+  state.list.orderIds = buildMixedOrder(words);
+  persist();
+}
+
+function buildMixedOrder(words) {
+  const levelOrder = ['N5', 'N4', 'N3', 'N2', 'N1', 'UNK'];
+  const buckets = new Map(levelOrder.map((lv) => [lv, []]));
+  for (const word of words) {
+    const lv = normalizeJlpt(word.jlpt);
+    const bucket = buckets.get(lv) || buckets.get('UNK');
+    bucket.push(word.id);
+  }
+  // Shuffle inside each level first.
+  for (const lv of levelOrder) {
+    shuffleInPlace(buckets.get(lv));
+  }
+  // Round-robin merge levels to keep each 20-word group mixed.
+  const result = [];
+  let added = true;
+  while (added) {
+    added = false;
+    for (const lv of levelOrder) {
+      const bucket = buckets.get(lv);
+      if (bucket.length > 0) {
+        result.push(bucket.pop());
+        added = true;
+      }
+    }
+  }
+  return result;
+}
+
+function shuffleInPlace(arr) {
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
 }
 
 function splitIntoChunks(words, size) {
@@ -1260,6 +1342,20 @@ function toggleCheckin(chunkKey, rowNo, round) {
   }
   state.list.checkins[chunkKey][key] = !state.list.checkins[chunkKey][key];
   persist();
+  if (round === 'first' && state.list.checkins[chunkKey][key]) {
+    requestAnimationFrame(() => {
+      document.getElementById('today-word-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+}
+
+function startCardSessionFromChunk(chunkWords, startIndex) {
+  const ids = chunkWords.map((word) => word.id);
+  state.session.ids = ids;
+  state.session.index = Math.max(0, Math.min(startIndex, ids.length - 1));
+  state.activeWordId = ids[state.session.index] || null;
+  persist();
+  showStudyApp('card');
 }
 
 function getWordMark(wordId) {
@@ -1497,12 +1593,39 @@ function getWordById(id) {
 }
 
 function nextWordId(currentId) {
+  const sessionNext = nextWordIdInSession(currentId);
+  if (sessionNext !== null) {
+    return sessionNext;
+  }
   const pool = getStudyPool();
   const currentIndex = pool.findIndex((word) => word.id === currentId);
   if (currentIndex < 0) {
     return pool[0]?.id || null;
   }
   return pool[(currentIndex + 1) % pool.length].id;
+}
+
+function nextWordIdInSession(currentId) {
+  const ids = state.session.ids;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return null;
+  }
+  let idx = state.session.index;
+  if (!Number.isInteger(idx) || idx < 0 || idx >= ids.length) {
+    idx = ids.indexOf(currentId);
+  }
+  if (idx < 0) {
+    return null;
+  }
+  const next = idx + 1;
+  if (next >= ids.length) {
+    state.session.ids = [];
+    state.session.index = 0;
+    persist();
+    return null;
+  }
+  state.session.index = next;
+  return ids[next];
 }
 
 function getRandomWord() {
