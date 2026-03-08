@@ -9,6 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 OPENAI_TTS_URL = "https://api.openai.com/v1/audio/speech"
+OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 
 
 def style_instructions(style: str) -> str:
@@ -35,22 +36,32 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_POST(self):
-        if self.path != "/api/tts":
-            self._send_json(404, {"error": "Not found"})
-            return
+    def _read_json_payload(self):
+        length = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(length)
+        try:
+            return json.loads(raw.decode("utf-8")) if raw else {}
+        except json.JSONDecodeError:
+            self._send_json(400, {"error": "Invalid JSON"})
+            return None
 
+    def do_POST(self):
+        if self.path == "/api/tts":
+            self.handle_tts()
+            return
+        if self.path == "/api/handwrite_eval":
+            self.handle_handwrite_eval()
+            return
+        self._send_json(404, {"error": "Not found"})
+
+    def handle_tts(self):
         api_key = os.getenv("OPENAI_API_KEY", "").strip()
         if not api_key:
             self._send_json(500, {"error": "Missing OPENAI_API_KEY"})
             return
 
-        length = int(self.headers.get("Content-Length", "0"))
-        raw = self.rfile.read(length)
-        try:
-            payload = json.loads(raw.decode("utf-8")) if raw else {}
-        except json.JSONDecodeError:
-            self._send_json(400, {"error": "Invalid JSON"})
+        payload = self._read_json_payload()
+        if payload is None:
             return
 
         text = str(payload.get("input", "")).strip()
@@ -96,6 +107,102 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(audio)))
         self.end_headers()
         self.wfile.write(audio)
+
+    def handle_handwrite_eval(self):
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            self._send_json(500, {"error": "Missing OPENAI_API_KEY"})
+            return
+
+        payload = self._read_json_payload()
+        if payload is None:
+            return
+
+        image_data_url = str(payload.get("image", "")).strip()
+        expected = str(payload.get("expected", "")).strip()
+        if not image_data_url or not expected:
+            self._send_json(400, {"error": "image and expected are required"})
+            return
+
+        prompt = (
+            "You are grading Japanese handwriting from a canvas image. "
+            "First read the handwritten text in the image, then compare with expected answer. "
+            "Return strict JSON only with keys: "
+            "isCorrect (boolean), recognized (string), score (0-100 integer), feedback (string in Chinese). "
+            f"Expected answer: {expected}"
+        )
+
+        req_payload = {
+            "model": "gpt-4.1-mini",
+            "input": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": prompt},
+                        {"type": "input_image", "image_url": image_data_url},
+                    ],
+                }
+            ],
+            "text": {"format": {"type": "json_object"}},
+        }
+
+        req = urllib.request.Request(
+            OPENAI_RESPONSES_URL,
+            data=json.dumps(req_payload).encode("utf-8"),
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+        )
+
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            details = e.read().decode("utf-8", errors="replace") if hasattr(e, "read") else ""
+            self._send_json(e.code, {"error": "OpenAI API error", "details": details})
+            return
+        except Exception as e:
+            self._send_json(502, {"error": f"Handwrite eval request failed: {e}"})
+            return
+
+        # Try to read unified text output from Responses API and parse as JSON.
+        text = result.get("output_text", "") or ""
+        if not text:
+            # Fallback parser for older/newer response shapes.
+            try:
+                output = result.get("output", [])
+                if output and isinstance(output, list):
+                    content = output[0].get("content", [])
+                    if content and isinstance(content, list):
+                        text = str(content[0].get("text", "")).strip()
+            except Exception:
+                text = ""
+        try:
+            graded = json.loads(text) if text else {}
+        except Exception:
+            graded = {}
+
+        is_correct = bool(graded.get("isCorrect", False))
+        recognized = str(graded.get("recognized", "")).strip()
+        feedback = str(graded.get("feedback", "")).strip() or ("写得不错！" if is_correct else "再练一次会更稳。")
+        score = graded.get("score", 0)
+        try:
+            score = int(score)
+        except Exception:
+            score = 0
+        score = max(0, min(100, score))
+
+        self._send_json(
+            200,
+            {
+                "isCorrect": is_correct,
+                "recognized": recognized,
+                "score": score,
+                "feedback": feedback,
+            },
+        )
 
 
 def main() -> None:

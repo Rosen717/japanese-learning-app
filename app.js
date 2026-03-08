@@ -58,10 +58,10 @@ function init() {
 
 function bindEvents() {
   if (enterAppBtn instanceof HTMLElement) {
-    enterAppBtn.addEventListener('click', () => showStudyApp('learn'));
+    enterAppBtn.addEventListener('click', () => showStudyApp('book'));
   }
   if (enterAppBtnMain instanceof HTMLElement) {
-    enterAppBtnMain.addEventListener('click', () => showStudyApp('learn'));
+    enterAppBtnMain.addEventListener('click', () => showStudyApp('book'));
   }
   if (enterDictBtn instanceof HTMLElement) {
     enterDictBtn.addEventListener('click', () => showStudyApp('dictionary'));
@@ -170,11 +170,23 @@ function showStudyApp(targetTab = null) {
     void ensureDictionaryData();
   }
   if (targetTab) {
-    state.activeTab = targetTab;
-    tabs.forEach((btn) => btn.classList.toggle('is-active', btn.dataset.tab === targetTab));
-    renderTab(targetTab);
+    const nextTab = normalizeTab(targetTab);
+    state.activeTab = nextTab;
+    tabs.forEach((btn) => btn.classList.toggle('is-active', btn.dataset.tab === nextTab));
+    renderTab(nextTab);
     persist();
   }
+}
+
+function normalizeTab(tab) {
+  const t = String(tab || '');
+  if (t === 'learn') return 'card';
+  if (t === 'quiz') return 'card';
+  if (t === 'review') return 'list';
+  if (t === 'handwrite') return 'dictation';
+  if (t === 'search') return 'dictionary';
+  if (['book', 'list', 'card', 'dictation', 'grammar', 'dictionary'].includes(t)) return t;
+  return 'book';
 }
 
 function openQuickSearch() {
@@ -201,8 +213,8 @@ function closeQuickSearch() {
 
 function createState() {
   const raw = safeParse(localStorage.getItem(STORAGE_KEY));
-  const rawTab = raw?.activeTab || 'learn';
-  const activeTab = rawTab === 'search' ? 'dictionary' : rawTab;
+  const rawTab = raw?.activeTab || 'book';
+  const activeTab = normalizeTab(rawTab);
   const cardMap = new Map((raw?.cards || []).map((card) => [card.id, card]));
 
   const cards = VOCAB.map((word) => {
@@ -243,6 +255,10 @@ function createState() {
       level: raw?.dictionary?.level || 'ALL',
       keyword: raw?.dictionary?.keyword || ''
     },
+    book: {
+      level: raw?.book?.level || 'N5'
+    },
+    marks: raw?.marks && typeof raw.marks === 'object' ? raw.marks : {},
     search: {
       keyword: raw?.search?.keyword || ''
     }
@@ -274,6 +290,10 @@ function persist() {
         level: state.dictionary.level,
         keyword: state.dictionary.keyword
       },
+      book: {
+        level: state.book.level
+      },
+      marks: state.marks,
       search: {
         keyword: state.search.keyword
       }
@@ -297,27 +317,158 @@ function refreshStats() {
 }
 
 function renderTab(tab) {
+  const normalizedTab = normalizeTab(tab);
+  state.activeTab = normalizedTab;
+  tabs.forEach((btn) => btn.classList.toggle('is-active', btn.dataset.tab === normalizedTab));
   if (statsGrid instanceof HTMLElement) {
-    statsGrid.style.display = tab === 'dictionary' ? 'none' : 'grid';
+    statsGrid.style.display = normalizedTab === 'dictionary' ? 'none' : 'grid';
   }
   if (contentToolbar) {
-    contentToolbar.style.display = tab === 'grammar' || tab === 'dictionary' || tab === 'handwrite' ? 'none' : 'flex';
+    contentToolbar.style.display = normalizedTab === 'card' ? 'flex' : 'none';
   }
-  if (tab === 'learn') {
+  if (normalizedTab === 'book') {
+    renderBook();
+  } else if (normalizedTab === 'list') {
+    renderListStage();
+  } else if (normalizedTab === 'card') {
     renderLearn();
-  } else if (tab === 'quiz') {
-    renderQuiz();
-  } else if (tab === 'handwrite') {
+  } else if (normalizedTab === 'dictation') {
     renderHandwrite();
-  } else if (tab === 'grammar') {
+  } else if (normalizedTab === 'grammar') {
     renderGrammar();
-  } else if (tab === 'dictionary') {
+  } else if (normalizedTab === 'dictionary') {
     renderDictionary();
   } else {
-    renderReview();
+    renderBook();
   }
 
   refreshStats();
+}
+
+function renderBook() {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'grammar-page';
+
+  const header = document.createElement('div');
+  header.className = 'grammar-header';
+  header.innerHTML = '<h2>我的词书</h2><p class="secondary">先列表速背，再卡片精学，最后默写巩固</p>';
+
+  const levels = ['N5', 'N4', 'N3', 'N2', 'N1', 'ALL'];
+  const levelButtons = document.createElement('div');
+  levelButtons.className = 'level-buttons';
+  levels.forEach((level) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `level-btn${state.book.level === level ? ' is-active' : ''}`;
+    btn.textContent = level === 'ALL' ? '全部' : level;
+    btn.addEventListener('click', () => {
+      state.book.level = level;
+      persist();
+      renderBook();
+    });
+    levelButtons.appendChild(btn);
+  });
+
+  const words = getBookWords();
+  const known = words.filter((w) => getWordMark(w.id) === 'known').length;
+  const fuzzy = words.filter((w) => getWordMark(w.id) === 'fuzzy').length;
+  const fresh = words.length - known - fuzzy;
+
+  const card = document.createElement('article');
+  card.className = 'grammar-card';
+  card.innerHTML = [
+    `<p class="badge">${state.book.level === 'ALL' ? '全部词书' : `${state.book.level} 词书`}</p>`,
+    `<h3>共 ${words.length} 词</h3>`,
+    `<p class="secondary">已记得 ${known} · 模糊 ${fuzzy} · 未学 ${fresh}</p>`
+  ].join('');
+
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  const toList = document.createElement('button');
+  toList.type = 'button';
+  toList.className = 'secondary';
+  toList.textContent = '1) 列表速背';
+  toList.addEventListener('click', () => showStudyApp('list'));
+  const toCard = document.createElement('button');
+  toCard.type = 'button';
+  toCard.className = 'primary';
+  toCard.textContent = '2) 卡片精学';
+  toCard.addEventListener('click', () => showStudyApp('card'));
+  const toDict = document.createElement('button');
+  toDict.type = 'button';
+  toDict.className = 'warn';
+  toDict.textContent = '3) 默写巩固';
+  toDict.addEventListener('click', () => showStudyApp('dictation'));
+  actions.append(toList, toCard, toDict);
+
+  wrapper.append(header, levelButtons, card, actions);
+  contentArea.replaceChildren(wrapper);
+}
+
+function renderListStage() {
+  const words = getBookWords().slice(0, 80);
+  const wrapper = document.createElement('div');
+  wrapper.className = 'grammar-page';
+
+  const header = document.createElement('div');
+  header.className = 'grammar-header';
+  header.innerHTML = `<h2>单词列表速背</h2><p class="secondary">${state.book.level === 'ALL' ? '全部词书' : state.book.level} · 本页 ${words.length} 词</p>`;
+
+  const list = document.createElement('div');
+  list.className = 'grammar-list';
+  if (words.length === 0) {
+    list.innerHTML = '<p class="empty">当前等级没有单词。</p>';
+  } else {
+    words.forEach((word, idx) => {
+      const row = document.createElement('article');
+      row.className = 'grammar-card';
+      const mark = getWordMark(word.id);
+      row.innerHTML = [
+        `<p class="badge">${idx + 1}</p>`,
+        `<h3>${word.ja} <span class="secondary">${word.kana || ''}</span></h3>`,
+        `<p class="meaning">${word.zh}</p>`,
+        `<p class="secondary">当前标记：${mark === 'known' ? '已记得' : mark === 'fuzzy' ? '模糊' : '未学'}</p>`
+      ].join('');
+      const actions = document.createElement('div');
+      actions.className = 'speak-row';
+      const knownBtn = document.createElement('button');
+      knownBtn.className = 'small-btn';
+      knownBtn.type = 'button';
+      knownBtn.textContent = '已记得';
+      knownBtn.addEventListener('click', () => {
+        setWordMark(word.id, 'known');
+        renderListStage();
+      });
+      const fuzzyBtn = document.createElement('button');
+      fuzzyBtn.className = 'small-btn';
+      fuzzyBtn.type = 'button';
+      fuzzyBtn.textContent = '模糊';
+      fuzzyBtn.addEventListener('click', () => {
+        setWordMark(word.id, 'fuzzy');
+        renderListStage();
+      });
+      const freshBtn = document.createElement('button');
+      freshBtn.className = 'small-btn';
+      freshBtn.type = 'button';
+      freshBtn.textContent = '未学';
+      freshBtn.addEventListener('click', () => {
+        setWordMark(word.id, 'new');
+        renderListStage();
+      });
+      actions.append(knownBtn, fuzzyBtn, freshBtn);
+      row.appendChild(actions);
+      list.appendChild(row);
+    });
+  }
+
+  const flowActions = document.createElement('div');
+  flowActions.className = 'actions';
+  flowActions.innerHTML = '<button class="primary" type="button" id="go-card-stage">进入卡片精学</button><button class="secondary" type="button" id="go-dict-stage">进入默写</button>';
+  flowActions.querySelector('#go-card-stage')?.addEventListener('click', () => showStudyApp('card'));
+  flowActions.querySelector('#go-dict-stage')?.addEventListener('click', () => showStudyApp('dictation'));
+
+  wrapper.append(header, list, flowActions);
+  contentArea.replaceChildren(wrapper);
 }
 
 function renderLearn() {
@@ -539,6 +690,10 @@ function renderHandwrite() {
   answer.className = 'handwrite-answer secondary';
   answer.textContent = '';
   wrapper.appendChild(answer);
+  const evalResult = document.createElement('p');
+  evalResult.className = 'handwrite-answer secondary';
+  evalResult.textContent = '';
+  wrapper.appendChild(evalResult);
 
   const actions = document.createElement('div');
   actions.className = 'actions';
@@ -552,6 +707,11 @@ function renderHandwrite() {
   showBtn.type = 'button';
   showBtn.className = 'secondary';
   showBtn.textContent = '显示答案';
+
+  const evalBtn = document.createElement('button');
+  evalBtn.type = 'button';
+  evalBtn.className = 'secondary';
+  evalBtn.textContent = 'AI判题';
 
   const goodBtn = document.createElement('button');
   goodBtn.type = 'button';
@@ -568,7 +728,7 @@ function renderHandwrite() {
   nextBtn.className = 'secondary';
   nextBtn.textContent = '下一题';
 
-  actions.append(clearBtn, showBtn, goodBtn, againBtn, nextBtn);
+  actions.append(clearBtn, showBtn, evalBtn, goodBtn, againBtn, nextBtn);
   wrapper.appendChild(actions);
   contentArea.replaceChildren(wrapper);
 
@@ -576,6 +736,21 @@ function renderHandwrite() {
   clearBtn.addEventListener('click', () => pad.clear());
   showBtn.addEventListener('click', () => {
     answer.textContent = `答案：${word.ja}${word.kana ? `（${word.kana}）` : ''}`;
+  });
+  evalBtn.addEventListener('click', async () => {
+    evalBtn.disabled = true;
+    evalBtn.textContent = '判题中...';
+    evalResult.textContent = '';
+    const result = await evaluateHandwrite(canvas, word.ja);
+    if (!result) {
+      evalResult.textContent = 'AI判题失败，请确认你是用 run_server.py 启动，并且 OPENAI_API_KEY 正确。';
+    } else {
+      const prefix = result.isCorrect ? '判定：写对了' : '判定：还不够准确';
+      const rec = result.recognized ? `；识别：${result.recognized}` : '';
+      evalResult.textContent = `${prefix}（${result.score}分）${rec}。${result.feedback}`;
+    }
+    evalBtn.disabled = false;
+    evalBtn.textContent = 'AI判题';
   });
   goodBtn.addEventListener('click', () => {
     applyReview(word.id, true);
@@ -915,7 +1090,38 @@ function buildWordIndex(list) {
 }
 
 function getStudyPool() {
-  return dictionaryEntries.length > 0 ? dictionaryEntries : VOCAB;
+  const base = getBookWords();
+  if (state.activeTab === 'card' || state.activeTab === 'dictation') {
+    const filtered = base.filter((word) => {
+      const mark = getWordMark(word.id);
+      return mark === 'new' || mark === 'fuzzy';
+    });
+    if (filtered.length > 0) {
+      return filtered;
+    }
+  }
+  return base.length > 0 ? base : dictionaryEntries.length > 0 ? dictionaryEntries : VOCAB;
+}
+
+function getBookWords() {
+  const all = dictionaryEntries.length > 0 ? dictionaryEntries : VOCAB;
+  if (state.book.level === 'ALL') {
+    return all;
+  }
+  return all.filter((word) => normalizeJlpt(word.jlpt) === state.book.level);
+}
+
+function getWordMark(wordId) {
+  const mark = state.marks[wordId];
+  if (mark === 'known' || mark === 'fuzzy' || mark === 'new') {
+    return mark;
+  }
+  return 'new';
+}
+
+function setWordMark(wordId, mark) {
+  state.marks[wordId] = mark;
+  persist();
 }
 
 function createBlankCard(id) {
@@ -1059,6 +1265,7 @@ function applyReview(wordId, isCorrect) {
 
   const dayKey = localDateKey(now);
   state.activity[dayKey] = (state.activity[dayKey] || 0) + 1;
+  setWordMark(wordId, isCorrect ? 'known' : 'fuzzy');
 }
 
 function setNextQuizQuestion() {
@@ -1257,6 +1464,23 @@ function initHandwritePad(canvas) {
       drawGrid();
     }
   };
+}
+
+async function evaluateHandwrite(canvas, expected) {
+  try {
+    const image = canvas.toDataURL('image/png');
+    const resp = await fetch('/api/handwrite_eval', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image, expected })
+    });
+    if (!resp.ok) {
+      return null;
+    }
+    return await resp.json();
+  } catch {
+    return null;
+  }
 }
 
 function calcStreak() {
