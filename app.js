@@ -502,11 +502,13 @@ function renderListStage() {
       const td = document.createElement('td');
       const chip = document.createElement('button');
       chip.type = 'button';
-      chip.className = `check-chip${getCheckin(chunkKey, no, round) ? ' is-on' : ''}`;
-      chip.textContent = getCheckin(chunkKey, no, round) ? '✓' : '';
+      const initialChecked = getCheckin(chunkKey, no, round);
+      chip.className = `check-chip${initialChecked ? ' is-on' : ''}`;
+      chip.textContent = initialChecked ? '✓' : '';
       chip.addEventListener('click', () => {
-        toggleCheckin(chunkKey, no, round);
-        renderListStage();
+        const nextChecked = toggleCheckin(chunkKey, no, round);
+        chip.classList.toggle('is-on', nextChecked);
+        chip.textContent = nextChecked ? '✓' : '';
       });
       td.appendChild(chip);
       tr.appendChild(td);
@@ -1341,12 +1343,14 @@ function toggleCheckin(chunkKey, rowNo, round) {
     state.list.checkins[chunkKey] = {};
   }
   state.list.checkins[chunkKey][key] = !state.list.checkins[chunkKey][key];
+  const checked = Boolean(state.list.checkins[chunkKey][key]);
   persist();
-  if (round === 'first' && state.list.checkins[chunkKey][key]) {
+  if (round === 'first' && checked) {
     requestAnimationFrame(() => {
       document.getElementById('today-word-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
+  return checked;
 }
 
 function startCardSessionFromChunk(chunkWords, startIndex) {
