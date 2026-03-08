@@ -31,6 +31,7 @@ const quizWrongOnly = document.getElementById('quiz-wrong-only');
 const voiceStatus = document.getElementById('voice-status');
 const contentToolbar = document.querySelector('.toolbar');
 const statsGrid = document.querySelector('.stats-grid');
+const tabsNav = document.querySelector('.tabs');
 const todayCountEl = document.getElementById('today-count');
 const streakCountEl = document.getElementById('streak-count');
 const dueCountEl = document.getElementById('due-count');
@@ -50,10 +51,9 @@ init();
 
 function init() {
   bindEvents();
-  showHome();
+  showStudyApp(state.activeTab || 'book');
   void ensureDictionaryData();
   refreshStats();
-  renderTab(state.activeTab);
 }
 
 function bindEvents() {
@@ -321,7 +321,10 @@ function renderTab(tab) {
   state.activeTab = normalizedTab;
   tabs.forEach((btn) => btn.classList.toggle('is-active', btn.dataset.tab === normalizedTab));
   if (statsGrid instanceof HTMLElement) {
-    statsGrid.style.display = normalizedTab === 'dictionary' ? 'none' : 'grid';
+    statsGrid.style.display = normalizedTab === 'dictionary' || normalizedTab === 'book' ? 'none' : 'grid';
+  }
+  if (tabsNav instanceof HTMLElement) {
+    tabsNav.style.display = normalizedTab === 'book' ? 'none' : 'grid';
   }
   if (contentToolbar) {
     contentToolbar.style.display = normalizedTab === 'card' ? 'flex' : 'none';
@@ -347,26 +350,32 @@ function renderTab(tab) {
 
 function renderBook() {
   const wrapper = document.createElement('div');
-  wrapper.className = 'grammar-page';
+  wrapper.className = 'book-home';
 
   const header = document.createElement('div');
   header.className = 'grammar-header';
   header.innerHTML = '<h2>我的词书</h2><p class="secondary">先列表速背，再卡片精学，最后默写巩固</p>';
 
   const levels = ['N5', 'N4', 'N3', 'N2', 'N1', 'ALL'];
-  const levelButtons = document.createElement('div');
-  levelButtons.className = 'level-buttons';
-  levels.forEach((level) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `level-btn${state.book.level === level ? ' is-active' : ''}`;
-    btn.textContent = level === 'ALL' ? '全部' : level;
-    btn.addEventListener('click', () => {
-      state.book.level = level;
-      persist();
-      renderBook();
-    });
-    levelButtons.appendChild(btn);
+  const currentIndex = Math.max(0, levels.indexOf(state.book.level));
+  const selector = document.createElement('div');
+  selector.className = 'book-selector';
+  selector.innerHTML = [
+    '<button class="ghost-btn small" type="button" data-role="prev">‹</button>',
+    `<span class="book-selector-chip">${state.book.level === 'ALL' ? '全部词书' : `${state.book.level} 词书`}</span>`,
+    '<button class="ghost-btn small" type="button" data-role="next">›</button>'
+  ].join('');
+  selector.querySelector('[data-role="prev"]')?.addEventListener('click', () => {
+    const idx = (currentIndex - 1 + levels.length) % levels.length;
+    state.book.level = levels[idx];
+    persist();
+    renderBook();
+  });
+  selector.querySelector('[data-role="next"]')?.addEventListener('click', () => {
+    const idx = (currentIndex + 1) % levels.length;
+    state.book.level = levels[idx];
+    persist();
+    renderBook();
   });
 
   const words = getBookWords();
@@ -374,12 +383,26 @@ function renderBook() {
   const fuzzy = words.filter((w) => getWordMark(w.id) === 'fuzzy').length;
   const fresh = words.length - known - fuzzy;
 
-  const card = document.createElement('article');
-  card.className = 'grammar-card';
-  card.innerHTML = [
-    `<p class="badge">${state.book.level === 'ALL' ? '全部词书' : `${state.book.level} 词书`}</p>`,
-    `<h3>共 ${words.length} 词</h3>`,
-    `<p class="secondary">已记得 ${known} · 模糊 ${fuzzy} · 未学 ${fresh}</p>`
+  const deck = document.createElement('section');
+  deck.className = 'book-deck';
+  deck.innerHTML = [
+    '<div class="book-side book-left"><span>Vocabulary</span></div>',
+    '<button class="book-main" type="button" aria-label="进入词书学习">',
+    `  <p class="book-tag">${state.book.level === 'ALL' ? '全部词书' : `${state.book.level} 词书`}</p>`,
+    '  <h3>Vocabulary</h3>',
+    '  <p>Learning Planner</p>',
+    '  <i class="book-ribbon" aria-hidden="true"></i>',
+    '</button>',
+    '<div class="book-side book-right"><span>Word Book</span></div>'
+  ].join('');
+  deck.querySelector('.book-main')?.addEventListener('click', () => showStudyApp('list'));
+
+  const progress = document.createElement('div');
+  progress.className = 'book-progress';
+  progress.innerHTML = [
+    `<p class="book-progress-main">${known}<span> / ${words.length}</span></p>`,
+    '<p class="secondary">已记得 / 总词数</p>',
+    `<div class="book-metrics"><p><strong>${fuzzy}</strong><span>模糊</span></p><p><strong>${fresh}</strong><span>未学</span></p></div>`
   ].join('');
 
   const actions = document.createElement('div');
@@ -401,7 +424,7 @@ function renderBook() {
   toDict.addEventListener('click', () => showStudyApp('dictation'));
   actions.append(toList, toCard, toDict);
 
-  wrapper.append(header, levelButtons, card, actions);
+  wrapper.append(header, selector, deck, progress, actions);
   contentArea.replaceChildren(wrapper);
 }
 

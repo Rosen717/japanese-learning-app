@@ -603,6 +603,175 @@ button.warn {
   margin-top: 0.55rem;
 }
 
+.book-home .level-buttons {
+  margin-top: 0.4rem;
+}
+
+.book-selector {
+  margin-top: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.book-selector-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0.2rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(145, 159, 108, 0.35);
+  color: #728046;
+  font-size: 0.86rem;
+}
+
+.book-deck {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: 1fr minmax(220px, 380px) 1fr;
+  align-items: end;
+  gap: 0.9rem;
+}
+
+.book-side {
+  height: 300px;
+  border-radius: 20px;
+  background: linear-gradient(160deg, #9aa8c8, #7a8cae);
+  box-shadow: 0 18px 28px rgba(62, 75, 95, 0.15);
+  transform: perspective(900px) rotateY(24deg) scale(0.9);
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.book-side span {
+  color: rgba(248, 249, 245, 0.88);
+  font-size: 1.6rem;
+  letter-spacing: 0.02em;
+}
+
+.book-right {
+  transform: perspective(900px) rotateY(-24deg) scale(0.9);
+  background: linear-gradient(160deg, #b89a8f, #8f776f);
+}
+
+.book-main {
+  position: relative;
+  border: 0;
+  width: 100%;
+  min-height: 360px;
+  border-radius: 30px 24px 24px 34px;
+  background: linear-gradient(160deg, #9ca86a, #808f53);
+  color: #eff2df;
+  box-shadow:
+    inset -6px 0 0 rgba(71, 81, 42, 0.34),
+    0 26px 42px rgba(84, 93, 55, 0.25);
+  padding: 1.15rem 1.3rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.book-main::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  bottom: -10px;
+  width: calc(100% - 24px);
+  height: 16px;
+  border-radius: 0 0 24px 24px;
+  background: #f4f3ec;
+  box-shadow: 0 8px 14px rgba(66, 76, 42, 0.15);
+}
+
+.book-main::after {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: 14px;
+  width: 6px;
+  height: calc(100% - 34px);
+  border-radius: 0 8px 8px 0;
+  background: rgba(70, 79, 44, 0.35);
+}
+
+.book-main h3 {
+  margin: 5.3rem 0 0.25rem;
+  font-size: clamp(2rem, 3.3vw, 3rem);
+  font-weight: 700;
+  color: #edf1dc;
+}
+
+.book-main p {
+  margin: 0;
+  font-size: 1.28rem;
+  color: rgba(242, 244, 226, 0.92);
+}
+
+.book-main .book-tag {
+  margin: 0;
+  display: inline-block;
+  padding: 0.34rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(247, 248, 240, 0.92);
+  color: #6f7b47;
+  font-size: 0.86rem;
+}
+
+.book-ribbon {
+  position: absolute;
+  right: 24px;
+  bottom: -2px;
+  width: 12px;
+  height: 76px;
+  background: #e2c14b;
+  border-radius: 5px;
+}
+
+.book-progress {
+  margin-top: 0.9rem;
+  text-align: center;
+}
+
+.book-progress-main {
+  margin: 0;
+  font-size: 2.1rem;
+  color: #96a155;
+  font-weight: 800;
+}
+
+.book-progress-main span {
+  color: #8f9680;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.book-metrics {
+  margin-top: 0.45rem;
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(110px, 150px));
+  gap: 0.5rem;
+}
+
+.book-metrics p {
+  margin: 0;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.book-metrics strong {
+  font-size: 1.3rem;
+  color: #3a4433;
+}
+
+.book-metrics span {
+  color: #7c8171;
+  font-size: 0.82rem;
+}
+
 @media (max-width: 720px) {
   .feature-grid {
     grid-template-columns: 1fr;
@@ -614,6 +783,14 @@ button.warn {
 
   .tabs {
     grid-template-columns: repeat(3, 1fr);
+  }
+
+  .book-deck {
+    grid-template-columns: 1fr;
+  }
+
+  .book-side {
+    display: none;
   }
 
   .landing-top,
