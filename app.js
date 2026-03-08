@@ -264,6 +264,9 @@ function createState() {
     book: {
       level: raw?.book?.level || 'ALL'
     },
+    speed: {
+      soundOn: raw?.speed?.soundOn !== false
+    },
     list: {
       chunkIndex: Number.isInteger(raw?.list?.chunkIndex) ? raw.list.chunkIndex : 0,
       checkins: raw?.list?.checkins && typeof raw.list.checkins === 'object' ? raw.list.checkins : {},
@@ -308,6 +311,9 @@ function persist() {
       },
       book: {
         level: state.book.level
+      },
+      speed: {
+        soundOn: state.speed.soundOn
       },
       list: {
         chunkIndex: state.list.chunkIndex,
@@ -644,6 +650,19 @@ function renderSpeedQuiz() {
   title.textContent = `速测：「${word.ja}」的中文意思是？`;
   wrapper.appendChild(title);
 
+  const soundRow = document.createElement('div');
+  soundRow.className = 'toolbar';
+  soundRow.innerHTML = '<label><input type="checkbox" id="speed-sound-toggle" /> 速测声音</label>';
+  const soundToggle = soundRow.querySelector('#speed-sound-toggle');
+  if (soundToggle instanceof HTMLInputElement) {
+    soundToggle.checked = Boolean(state.speed.soundOn);
+    soundToggle.addEventListener('change', () => {
+      state.speed.soundOn = soundToggle.checked;
+      persist();
+    });
+  }
+  wrapper.appendChild(soundRow);
+
   if (showKana.checked) {
     const kana = document.createElement('p');
     kana.className = 'reading';
@@ -669,7 +688,9 @@ function renderSpeedQuiz() {
       if (correct) {
         btn.classList.remove('wrong');
         btn.classList.add('correct');
-        playCorrectSfx();
+        if (state.speed.soundOn) {
+          playCorrectSfx();
+        }
         applyReview(word.id, true);
         state.quiz.hasWrong = false;
         state.quiz.wrongChoices = [];
@@ -680,7 +701,9 @@ function renderSpeedQuiz() {
           renderSpeedQuiz();
         }, 260);
       } else {
-        playWrongSfx();
+        if (state.speed.soundOn) {
+          playWrongSfx();
+        }
         if (!wrongChoices.includes(choice)) {
           wrongChoices.push(choice);
         }
@@ -710,11 +733,14 @@ function renderSpeedQuiz() {
   speakQuestionBtn.className = 'secondary';
   speakQuestionBtn.textContent = '发音：题目单词';
   speakQuestionBtn.style.marginTop = '0.75rem';
+  speakQuestionBtn.disabled = !state.speed.soundOn;
   speakQuestionBtn.addEventListener('click', () => speak(word.ja));
   wrapper.appendChild(speakQuestionBtn);
 
   contentArea.replaceChildren(wrapper);
-  maybeAutoSpeak(word.ja);
+  if (state.speed.soundOn) {
+    maybeAutoSpeak(word.ja);
+  }
 }
 
 function renderReview() {
