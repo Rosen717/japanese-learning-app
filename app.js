@@ -129,7 +129,7 @@ function bindEvents() {
 
   tabs.forEach((tab) => {
     tab.addEventListener('click', () => {
-      state.activeTab = tab.dataset.tab || 'learn';
+      state.activeTab = tab.dataset.tab || 'book';
       tabs.forEach((btn) => btn.classList.toggle('is-active', btn === tab));
       renderTab(state.activeTab);
       persist();
@@ -258,6 +258,11 @@ function createState() {
     book: {
       level: raw?.book?.level || 'N5'
     },
+    list: {
+      chunkIndex: Number.isInteger(raw?.list?.chunkIndex) ? raw.list.chunkIndex : 0,
+      checkins: raw?.list?.checkins && typeof raw.list.checkins === 'object' ? raw.list.checkins : {},
+      startDates: raw?.list?.startDates && typeof raw.list.startDates === 'object' ? raw.list.startDates : {}
+    },
     marks: raw?.marks && typeof raw.marks === 'object' ? raw.marks : {},
     search: {
       keyword: raw?.search?.keyword || ''
@@ -292,6 +297,11 @@ function persist() {
       },
       book: {
         level: state.book.level
+      },
+      list: {
+        chunkIndex: state.list.chunkIndex,
+        checkins: state.list.checkins,
+        startDates: state.list.startDates
       },
       marks: state.marks,
       search: {
@@ -429,60 +439,127 @@ function renderBook() {
 }
 
 function renderListStage() {
-  const words = getBookWords().slice(0, 80);
+  const words = getBookWords();
+  const chunks = splitIntoChunks(words, 20);
+  if (chunks.length === 0) {
+    contentArea.innerHTML = '<p class="empty">当前等级没有单词。</p>';
+    return;
+  }
+  if (state.list.chunkIndex < 0 || state.list.chunkIndex >= chunks.length) {
+    state.list.chunkIndex = 0;
+    persist();
+  }
+  const currentChunk = chunks[state.list.chunkIndex];
+  const chunkWords = currentChunk.items;
+  const chunkKey = getChunkKey(state.book.level, state.list.chunkIndex);
+  const startDate = getChunkStartDate(chunkKey);
+
   const wrapper = document.createElement('div');
   wrapper.className = 'grammar-page list-stage';
 
   const header = document.createElement('div');
   header.className = 'grammar-header';
-  header.innerHTML = `<h2>单词列表速背</h2><p class="secondary">${state.book.level === 'ALL' ? '全部词书' : state.book.level} · 本页 ${words.length} 词</p>`;
+  header.innerHTML = `<h2>单词列表速背</h2><p class="secondary">${state.book.level === 'ALL' ? '全部词书' : state.book.level} · 每组 20 词</p>`;
 
-  const list = document.createElement('div');
-  list.className = 'grammar-list';
-  if (words.length === 0) {
-    list.innerHTML = '<p class="empty">当前等级没有单词。</p>';
-  } else {
-    words.forEach((word, idx) => {
-      const row = document.createElement('article');
-      row.className = 'grammar-card list-row';
-      const mark = getWordMark(word.id);
-      row.innerHTML = [
-        `<p class="badge">${idx + 1}</p>`,
-        `<h3>${word.ja} <span class="secondary">${word.kana || ''}</span></h3>`,
-        `<p class="meaning">${word.zh}</p>`,
-        `<p class="secondary">当前标记：${mark === 'known' ? '已记得' : mark === 'fuzzy' ? '模糊' : '未学'}</p>`
-      ].join('');
-      const actions = document.createElement('div');
-      actions.className = 'speak-row';
-      const knownBtn = document.createElement('button');
-      knownBtn.className = 'small-btn';
-      knownBtn.type = 'button';
-      knownBtn.textContent = '已记得';
-      knownBtn.addEventListener('click', () => {
-        setWordMark(word.id, 'known');
-        renderListStage();
-      });
-      const fuzzyBtn = document.createElement('button');
-      fuzzyBtn.className = 'small-btn';
-      fuzzyBtn.type = 'button';
-      fuzzyBtn.textContent = '模糊';
-      fuzzyBtn.addEventListener('click', () => {
-        setWordMark(word.id, 'fuzzy');
-        renderListStage();
-      });
-      const freshBtn = document.createElement('button');
-      freshBtn.className = 'small-btn';
-      freshBtn.type = 'button';
-      freshBtn.textContent = '未学';
-      freshBtn.addEventListener('click', () => {
-        setWordMark(word.id, 'new');
-        renderListStage();
-      });
-      actions.append(knownBtn, fuzzyBtn, freshBtn);
-      row.appendChild(actions);
-      list.appendChild(row);
+  const layout = document.createElement('div');
+  layout.className = 'list-layout';
+
+  const rail = document.createElement('aside');
+  rail.className = 'list-rail';
+  chunks.forEach((chunk, idx) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `level-btn${idx === state.list.chunkIndex ? ' is-active' : ''}`;
+    const from = String(chunk.start + 1).padStart(2, '0');
+    const to = String(chunk.end).padStart(2, '0');
+    btn.textContent = `${from}~${to}`;
+    btn.addEventListener('click', () => {
+      state.list.chunkIndex = idx;
+      persist();
+      renderListStage();
     });
-  }
+    rail.appendChild(btn);
+  });
+
+  const board = document.createElement('section');
+  board.className = 'list-board';
+
+  const tableWrap = document.createElement('div');
+  tableWrap.className = 'checkin-table-wrap';
+  const table = document.createElement('table');
+  table.className = 'checkin-table';
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th>No.</th><th>Date</th><th>First</th><th>Day1</th><th>Day2</th><th>Day4</th><th>Day7</th></tr>';
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  const rounds = ['first', 'day1', 'day2', 'day4', 'day7'];
+  chunkWords.forEach((word, idx) => {
+    const tr = document.createElement('tr');
+    const no = idx + 1;
+    tr.innerHTML = `<td>${no}</td><td>${formatDateOffset(startDate, idx)}</td>`;
+    rounds.forEach((round) => {
+      const td = document.createElement('td');
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = `check-chip${getCheckin(chunkKey, no, round) ? ' is-on' : ''}`;
+      chip.textContent = getCheckin(chunkKey, no, round) ? '✓' : '';
+      chip.addEventListener('click', () => {
+        toggleCheckin(chunkKey, no, round);
+        renderListStage();
+      });
+      td.appendChild(chip);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  tableWrap.appendChild(table);
+
+  const quickWords = document.createElement('div');
+  quickWords.className = 'grammar-list';
+  chunkWords.forEach((word, idx) => {
+    const row = document.createElement('article');
+    row.className = 'grammar-card list-row';
+    const mark = getWordMark(word.id);
+    row.innerHTML = [
+      `<p class="badge">${idx + 1}</p>`,
+      `<h3>${word.ja} <span class="secondary">${word.kana || ''}</span></h3>`,
+      `<p class="meaning">${word.zh}</p>`,
+      `<p class="secondary">当前标记：${mark === 'known' ? '已记得' : mark === 'fuzzy' ? '模糊' : '未学'}</p>`
+    ].join('');
+    const actions = document.createElement('div');
+    actions.className = 'speak-row';
+    const knownBtn = document.createElement('button');
+    knownBtn.className = 'small-btn';
+    knownBtn.type = 'button';
+    knownBtn.textContent = '已记得';
+    knownBtn.addEventListener('click', () => {
+      setWordMark(word.id, 'known');
+      renderListStage();
+    });
+    const fuzzyBtn = document.createElement('button');
+    fuzzyBtn.className = 'small-btn';
+    fuzzyBtn.type = 'button';
+    fuzzyBtn.textContent = '模糊';
+    fuzzyBtn.addEventListener('click', () => {
+      setWordMark(word.id, 'fuzzy');
+      renderListStage();
+    });
+    const freshBtn = document.createElement('button');
+    freshBtn.className = 'small-btn';
+    freshBtn.type = 'button';
+    freshBtn.textContent = '未学';
+    freshBtn.addEventListener('click', () => {
+      setWordMark(word.id, 'new');
+      renderListStage();
+    });
+    actions.append(knownBtn, fuzzyBtn, freshBtn);
+    row.appendChild(actions);
+    quickWords.appendChild(row);
+  });
+
+  board.append(tableWrap, quickWords);
+  layout.append(rail, board);
 
   const flowActions = document.createElement('div');
   flowActions.className = 'actions';
@@ -490,7 +567,7 @@ function renderListStage() {
   flowActions.querySelector('#go-card-stage')?.addEventListener('click', () => showStudyApp('card'));
   flowActions.querySelector('#go-dict-stage')?.addEventListener('click', () => showStudyApp('dictation'));
 
-  wrapper.append(header, list, flowActions);
+  wrapper.append(header, layout, flowActions);
   contentArea.replaceChildren(wrapper);
 }
 
@@ -1132,6 +1209,57 @@ function getBookWords() {
     return all;
   }
   return all.filter((word) => normalizeJlpt(word.jlpt) === state.book.level);
+}
+
+function splitIntoChunks(words, size) {
+  const chunks = [];
+  for (let i = 0; i < words.length; i += size) {
+    chunks.push({
+      start: i,
+      end: Math.min(i + size, words.length),
+      items: words.slice(i, i + size)
+    });
+  }
+  return chunks;
+}
+
+function getChunkKey(level, chunkIndex) {
+  return `${level}:${chunkIndex}`;
+}
+
+function getChunkStartDate(chunkKey) {
+  const stored = state.list.startDates[chunkKey];
+  if (stored) {
+    return stored;
+  }
+  const today = localDateKey(Date.now());
+  state.list.startDates[chunkKey] = today;
+  persist();
+  return today;
+}
+
+function formatDateOffset(baseDateKey, offset) {
+  const [y, m, d] = baseDateKey.split('-').map((x) => Number(x));
+  const base = new Date(y, (m || 1) - 1, d || 1);
+  const next = new Date(base.getTime() + offset * DAY);
+  const yy = next.getFullYear();
+  const mm = String(next.getMonth() + 1).padStart(2, '0');
+  const dd = String(next.getDate()).padStart(2, '0');
+  return `${yy}.${mm}.${dd}`;
+}
+
+function getCheckin(chunkKey, rowNo, round) {
+  const key = `${rowNo}:${round}`;
+  return Boolean(state.list.checkins[chunkKey]?.[key]);
+}
+
+function toggleCheckin(chunkKey, rowNo, round) {
+  const key = `${rowNo}:${round}`;
+  if (!state.list.checkins[chunkKey] || typeof state.list.checkins[chunkKey] !== 'object') {
+    state.list.checkins[chunkKey] = {};
+  }
+  state.list.checkins[chunkKey][key] = !state.list.checkins[chunkKey][key];
+  persist();
 }
 
 function getWordMark(wordId) {
