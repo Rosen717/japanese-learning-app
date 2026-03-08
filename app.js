@@ -159,8 +159,8 @@ function bindEvents() {
 }
 
 function showHome() {
-  homePage?.classList.remove('is-hidden');
-  studyApp?.classList.add('is-hidden');
+  // Return to the outermost "book shelf" screen instead of marketing landing.
+  showStudyApp('book');
 }
 
 function showStudyApp(targetTab = null) {
