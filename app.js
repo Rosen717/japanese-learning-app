@@ -166,7 +166,7 @@ function showHome() {
 function showStudyApp(targetTab = null) {
   homePage?.classList.add('is-hidden');
   studyApp?.classList.remove('is-hidden');
-  if (targetTab === 'dictionary' || targetTab === 'grammar') {
+  if (targetTab === 'dictionary') {
     void ensureDictionaryData();
   }
   if (targetTab) {
@@ -181,11 +181,11 @@ function showStudyApp(targetTab = null) {
 function normalizeTab(tab) {
   const t = String(tab || '');
   if (t === 'learn') return 'card';
-  if (t === 'quiz') return 'card';
+  if (t === 'quiz') return 'speed';
   if (t === 'review') return 'list';
   if (t === 'handwrite') return 'dictation';
   if (t === 'search') return 'dictionary';
-  if (['book', 'list', 'card', 'dictation', 'grammar', 'dictionary'].includes(t)) return t;
+  if (['book', 'list', 'card', 'speed', 'dictation', 'dictionary'].includes(t)) return t;
   return 'book';
 }
 
@@ -242,7 +242,9 @@ function createState() {
       currentWordId: raw?.quiz?.currentWordId || null,
       lastChoice: null,
       isAnswered: false,
-      choices: []
+      choices: [],
+      wrongChoices: [],
+      hasWrong: false
     },
     handwrite: {
       currentWordId: raw?.handwrite?.currentWordId || null
@@ -355,10 +357,10 @@ function renderTab(tab) {
     renderListStage();
   } else if (normalizedTab === 'card') {
     renderLearn();
+  } else if (normalizedTab === 'speed') {
+    renderSpeedQuiz();
   } else if (normalizedTab === 'dictation') {
     renderHandwrite();
-  } else if (normalizedTab === 'grammar') {
-    renderGrammar();
   } else if (normalizedTab === 'dictionary') {
     renderDictionary();
   } else {
@@ -623,19 +625,15 @@ function renderLearn() {
   maybeAutoSpeak(word.ja);
 }
 
-function renderQuiz() {
-  quizWrongOnly.checked = Boolean(state.quizWrongOnly);
+function renderSpeedQuiz() {
+  state.quizWrongOnly = false;
   if (!state.quiz.currentWordId || !Array.isArray(state.quiz.choices) || state.quiz.choices.length < 2) {
     setNextQuizQuestion();
   }
 
   const word = getWordById(state.quiz.currentWordId);
   if (!word) {
-    if (state.quizWrongOnly) {
-      contentArea.innerHTML = '<p class="empty">错题池为空。先做几道普通测验再回来练错题。</p>';
-    } else {
-      contentArea.innerHTML = '<p class="empty">暂时没有可测验词条。</p>';
-    }
+    contentArea.innerHTML = '<p class="empty">暂时没有可速测词条。</p>';
     return;
   }
 
@@ -643,7 +641,7 @@ function renderQuiz() {
   wrapper.className = 'quiz';
 
   const title = document.createElement('h2');
-  title.textContent = `「${word.ja}」的中文意思是？`;
+  title.textContent = `速测：「${word.ja}」的中文意思是？`;
   wrapper.appendChild(title);
 
   if (showKana.checked) {
@@ -655,59 +653,58 @@ function renderQuiz() {
 
   const options = document.createElement('div');
   options.className = 'quiz-options';
+  const wrongChoices = Array.isArray(state.quiz.wrongChoices) ? state.quiz.wrongChoices : [];
 
   state.quiz.choices.forEach((choice) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'quiz-option';
     btn.textContent = choice;
-
-    if (state.quiz.isAnswered) {
-      if (choice === word.zh) {
-        btn.classList.add('correct');
-      } else if (choice === state.quiz.lastChoice) {
-        btn.classList.add('wrong');
-      }
-      btn.disabled = true;
+    if (wrongChoices.includes(choice)) {
+      btn.classList.add('wrong');
     }
 
     btn.addEventListener('click', () => {
-      if (state.quiz.isAnswered) {
-        return;
-      }
       const correct = choice === word.zh;
-      state.quiz.lastChoice = choice;
-      state.quiz.isAnswered = true;
-      applyReview(word.id, correct);
       if (correct) {
+        btn.classList.remove('wrong');
+        btn.classList.add('correct');
         playCorrectSfx();
-      } else {
-        enqueueWrongWord(word.id);
-        playWrongSfx();
+        applyReview(word.id, true);
+        state.quiz.hasWrong = false;
+        state.quiz.wrongChoices = [];
+        persist();
         setTimeout(() => {
           setNextQuizQuestion();
           persist();
-          renderQuiz();
-        }, 280);
+          renderSpeedQuiz();
+        }, 260);
+      } else {
+        playWrongSfx();
+        if (!wrongChoices.includes(choice)) {
+          wrongChoices.push(choice);
+        }
+        state.quiz.wrongChoices = wrongChoices;
+        if (!state.quiz.hasWrong) {
+          state.quiz.hasWrong = true;
+          enqueueWrongWord(word.id);
+          applyReview(word.id, false);
+        }
         persist();
-        renderQuiz();
-        return;
+        renderSpeedQuiz();
       }
-      persist();
-      renderQuiz();
     });
 
     options.appendChild(btn);
   });
 
   wrapper.appendChild(options);
-  const queueTip = document.createElement('p');
-  queueTip.className = 'secondary';
-  queueTip.textContent = state.quizWrongOnly
-    ? `只练错题模式 · 当前错题池 ${state.wrongQueue.length}`
-    : `普通测验模式 · 错题池 ${state.wrongQueue.length}`;
-  queueTip.style.marginTop = '0.55rem';
-  wrapper.appendChild(queueTip);
+  const tip = document.createElement('p');
+  tip.className = 'secondary';
+  tip.style.marginTop = '0.55rem';
+  tip.textContent = '选对后自动下一题；选错会留在当前题直到选对。';
+  wrapper.appendChild(tip);
+
   const speakQuestionBtn = document.createElement('button');
   speakQuestionBtn.type = 'button';
   speakQuestionBtn.className = 'secondary';
@@ -715,20 +712,6 @@ function renderQuiz() {
   speakQuestionBtn.style.marginTop = '0.75rem';
   speakQuestionBtn.addEventListener('click', () => speak(word.ja));
   wrapper.appendChild(speakQuestionBtn);
-
-  if (state.quiz.isAnswered) {
-    const nextBtn = document.createElement('button');
-    nextBtn.type = 'button';
-    nextBtn.className = 'primary';
-    nextBtn.textContent = '下一题';
-    nextBtn.style.marginTop = '0.75rem';
-    nextBtn.addEventListener('click', () => {
-      setNextQuizQuestion();
-      persist();
-      renderQuiz();
-    });
-    wrapper.appendChild(nextBtn);
-  }
 
   contentArea.replaceChildren(wrapper);
   maybeAutoSpeak(word.ja);
@@ -1061,7 +1044,7 @@ function updateSearchResults(list, total) {
   list.replaceChildren();
 
   if (!keyword) {
-    total.textContent = '输入关键词后可直接跳转到词典或语法页';
+    total.textContent = '输入关键词后可直接跳转到词典页';
     list.innerHTML = '<p class="empty">请输入关键词。</p>';
     return;
   }
@@ -1069,13 +1052,10 @@ function updateSearchResults(list, total) {
   const vocabResults = dictionaryEntries.filter((item) =>
     [item.ja, item.kana, item.romaji, item.zh, item.part, item.sentenceJa, item.sentenceZh].join(' ').toLowerCase().includes(keyword)
   );
-  const grammarResults = GRAMMAR.filter((item) =>
-    [item.pattern, item.meaning, item.exampleJa, item.exampleZh, item.note].join(' ').toLowerCase().includes(keyword)
-  );
 
-  total.textContent = `找到 ${vocabResults.length} 条单词，${grammarResults.length} 条语法`;
+  total.textContent = `找到 ${vocabResults.length} 条单词`;
 
-  if (vocabResults.length === 0 && grammarResults.length === 0) {
+  if (vocabResults.length === 0) {
     list.innerHTML = '<p class="empty">没有匹配结果。</p>';
     return;
   }
@@ -1094,23 +1074,6 @@ function updateSearchResults(list, total) {
       showStudyApp('dictionary');
     });
     list.appendChild(goDict);
-  }
-
-  if (grammarResults.length > 0) {
-    const goGrammar = document.createElement('button');
-    goGrammar.type = 'button';
-    goGrammar.className = 'secondary';
-    goGrammar.style.marginLeft = '0.6rem';
-    goGrammar.textContent = `查看语法结果（${grammarResults.length}）`;
-    goGrammar.addEventListener('click', () => {
-      state.grammar.keyword = state.search.keyword.trim();
-      state.grammar.level = 'ALL';
-      state.activeTab = 'grammar';
-      persist();
-      closeQuickSearch();
-      showStudyApp('grammar');
-    });
-    list.appendChild(goGrammar);
   }
 }
 
@@ -1539,6 +1502,8 @@ function setNextQuizQuestion() {
   state.quiz.currentWordId = target.id;
   state.quiz.lastChoice = null;
   state.quiz.isAnswered = false;
+  state.quiz.wrongChoices = [];
+  state.quiz.hasWrong = false;
 
   const choices = new Set([target.zh]);
   let guard = 0;
