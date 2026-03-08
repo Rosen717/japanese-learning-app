@@ -426,12 +426,17 @@ function renderBook() {
   toCard.className = 'primary';
   toCard.textContent = '2) 卡片精学';
   toCard.addEventListener('click', () => showStudyApp('card'));
+  const toSpeed = document.createElement('button');
+  toSpeed.type = 'button';
+  toSpeed.className = 'secondary';
+  toSpeed.textContent = '3) 速测巩固';
+  toSpeed.addEventListener('click', () => showStudyApp('speed'));
   const toDict = document.createElement('button');
   toDict.type = 'button';
   toDict.className = 'warn';
-  toDict.textContent = '3) 默写巩固';
+  toDict.textContent = '4) 默写巩固';
   toDict.addEventListener('click', () => showStudyApp('dictation'));
-  actions.append(toList, toCard, toDict);
+  actions.append(toList, toCard, toSpeed, toDict);
 
   wrapper.append(header, deck, progress, actions);
   contentArea.replaceChildren(wrapper);
@@ -583,8 +588,10 @@ function renderListStage() {
 
   const flowActions = document.createElement('div');
   flowActions.className = 'actions';
-  flowActions.innerHTML = '<button class="primary" type="button" id="go-card-stage">进入卡片精学</button><button class="secondary" type="button" id="go-dict-stage">进入默写</button>';
+  flowActions.innerHTML =
+    '<button class="primary" type="button" id="go-card-stage">进入卡片精学</button><button class="secondary" type="button" id="go-speed-stage">进入速测</button><button class="warn" type="button" id="go-dict-stage">进入默写</button>';
   flowActions.querySelector('#go-card-stage')?.addEventListener('click', () => showStudyApp('card'));
+  flowActions.querySelector('#go-speed-stage')?.addEventListener('click', () => showStudyApp('speed'));
   flowActions.querySelector('#go-dict-stage')?.addEventListener('click', () => showStudyApp('dictation'));
 
   wrapper.append(header, reshuffleBtn, layout, flowActions);
