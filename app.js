@@ -408,7 +408,7 @@ function renderBook() {
 function renderListStage() {
   const words = getBookWords().slice(0, 80);
   const wrapper = document.createElement('div');
-  wrapper.className = 'grammar-page';
+  wrapper.className = 'grammar-page list-stage';
 
   const header = document.createElement('div');
   header.className = 'grammar-header';
@@ -421,7 +421,7 @@ function renderListStage() {
   } else {
     words.forEach((word, idx) => {
       const row = document.createElement('article');
-      row.className = 'grammar-card';
+      row.className = 'grammar-card list-row';
       const mark = getWordMark(word.id);
       row.innerHTML = [
         `<p class="badge">${idx + 1}</p>`,
